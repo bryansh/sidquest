@@ -1,35 +1,40 @@
-import { readFileSync, writeFileSync } from 'fs';
-import { join } from 'path';
+#!/usr/bin/env node
+
+import fs from 'fs';
+import { execSync } from 'child_process';
 
 const type = process.argv[2];
 if (!['patch', 'minor', 'major'].includes(type)) {
-  console.error('Usage: node bump-version.js [patch|minor|major]');
+  console.error('Usage: node scripts/bump-version.js [patch|minor|major]');
   process.exit(1);
 }
 
-// Update package.json
-const packagePath = 'package.json';
-const packageJson = JSON.parse(readFileSync(packagePath, 'utf8'));
-const [major, minor, patch] = packageJson.version.split('.').map(Number);
-
-let newVersion;
-if (type === 'major') newVersion = `${major + 1}.0.0`;
-else if (type === 'minor') newVersion = `${major}.${minor + 1}.0`;
-else newVersion = `${major}.${minor}.${patch + 1}`;
-
-packageJson.version = newVersion;
-writeFileSync(packagePath, JSON.stringify(packageJson, null, 2) + '\n');
+// Get the new version from npm version (but don't commit yet)
+const newVersion = execSync(`npm version ${type} --no-git-tag-version`, { encoding: 'utf8' }).trim().replace('v', '');
+console.log(`Bumping to version ${newVersion}`);
 
 // Update tauri.conf.json
-const tauriPath = join('src-tauri', 'tauri.conf.json');
-const tauriConf = JSON.parse(readFileSync(tauriPath, 'utf8'));
-tauriConf.version = newVersion;
-writeFileSync(tauriPath, JSON.stringify(tauriConf, null, 2) + '\n');
+const tauriConfigPath = 'src-tauri/tauri.conf.json';
+const tauriConfig = JSON.parse(fs.readFileSync(tauriConfigPath, 'utf8'));
+tauriConfig.version = newVersion;
+fs.writeFileSync(tauriConfigPath, JSON.stringify(tauriConfig, null, 2) + '\n');
+console.log(`✓ Updated ${tauriConfigPath}`);
 
 // Update Cargo.toml
-const cargoPath = join('src-tauri', 'Cargo.toml');
-let cargo = readFileSync(cargoPath, 'utf8');
-cargo = cargo.replace(/^version = ".*"/m, `version = "${newVersion}"`);
-writeFileSync(cargoPath, cargo);
+const cargoPath = 'src-tauri/Cargo.toml';
+let cargoContent = fs.readFileSync(cargoPath, 'utf8');
+cargoContent = cargoContent.replace(/^version = ".*"$/m, `version = "${newVersion}"`);
+fs.writeFileSync(cargoPath, cargoContent);
+console.log(`✓ Updated ${cargoPath}`);
 
-console.log(`Version bumped to ${newVersion}`);
+// Update Cargo.lock to reflect the new version
+execSync('cd src-tauri && cargo update -p sidquest', { stdio: 'inherit' });
+console.log(`✓ Updated Cargo.lock`);
+
+// Git operations
+execSync('git add -A', { stdio: 'inherit' });
+execSync(`git commit -m "Bump version to ${newVersion}"`, { stdio: 'inherit' });
+execSync(`git tag -a v${newVersion} -m "Version ${newVersion}"`, { stdio: 'inherit' });
+
+console.log(`\n✅ Version bumped to ${newVersion}`);
+console.log('To release, run: git push && git push --tags');
