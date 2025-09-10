@@ -27,7 +27,9 @@
  */
 declare module '$env/static/private' {
 	export const NVM_INC: string;
+	export const NoDefaultCurrentDirectoryInExePath: string;
 	export const TERM_PROGRAM: string;
+	export const CLAUDE_CODE_ENTRYPOINT: string;
 	export const NODE: string;
 	export const NVM_CD_FLAGS: string;
 	export const INIT_CWD: string;
@@ -38,9 +40,9 @@ declare module '$env/static/private' {
 	export const HOMEBREW_REPOSITORY: string;
 	export const TERM_PROGRAM_VERSION: string;
 	export const TAURI_CLI_VERBOSITY: string;
-	export const TAURI_ENV_DEBUG: string;
 	export const npm_config_registry: string;
 	export const ZSH: string;
+	export const GIT_EDITOR: string;
 	export const USER: string;
 	export const NVM_DIR: string;
 	export const TAURI_ENV_TARGET_TRIPLE: string;
@@ -60,10 +62,12 @@ declare module '$env/static/private' {
 	export const PATH: string;
 	export const npm_package_json: string;
 	export const __CFBundleIdentifier: string;
+	export const TAURI_UPDATER_PLUGIN_CONFIG: string;
 	export const TAURI_ENV_PLATFORM_VERSION: string;
 	export const TAURI_ENV_FAMILY: string;
 	export const PWD: string;
 	export const npm_command: string;
+	export const OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE: string;
 	export const npm_config__jsr_registry: string;
 	export const npm_lifecycle_event: string;
 	export const LANG: string;
@@ -82,11 +86,13 @@ declare module '$env/static/private' {
 	export const LESS: string;
 	export const npm_lifecycle_script: string;
 	export const SSH_SOCKET_DIR: string;
+	export const COREPACK_ENABLE_AUTO_PIN: string;
 	export const NVM_BIN: string;
 	export const npm_config_user_agent: string;
 	export const INFOPATH: string;
 	export const HOMEBREW_CELLAR: string;
 	export const CONDA_CHANGEPS1: string;
+	export const CLAUDECODE: string;
 	export const COLORTERM: string;
 	export const npm_node_execpath: string;
 	export const NODE_ENV: string;
@@ -120,7 +126,9 @@ declare module '$env/static/public' {
 declare module '$env/dynamic/private' {
 	export const env: {
 		NVM_INC: string;
+		NoDefaultCurrentDirectoryInExePath: string;
 		TERM_PROGRAM: string;
+		CLAUDE_CODE_ENTRYPOINT: string;
 		NODE: string;
 		NVM_CD_FLAGS: string;
 		INIT_CWD: string;
@@ -131,9 +139,9 @@ declare module '$env/dynamic/private' {
 		HOMEBREW_REPOSITORY: string;
 		TERM_PROGRAM_VERSION: string;
 		TAURI_CLI_VERBOSITY: string;
-		TAURI_ENV_DEBUG: string;
 		npm_config_registry: string;
 		ZSH: string;
+		GIT_EDITOR: string;
 		USER: string;
 		NVM_DIR: string;
 		TAURI_ENV_TARGET_TRIPLE: string;
@@ -153,10 +161,12 @@ declare module '$env/dynamic/private' {
 		PATH: string;
 		npm_package_json: string;
 		__CFBundleIdentifier: string;
+		TAURI_UPDATER_PLUGIN_CONFIG: string;
 		TAURI_ENV_PLATFORM_VERSION: string;
 		TAURI_ENV_FAMILY: string;
 		PWD: string;
 		npm_command: string;
+		OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE: string;
 		npm_config__jsr_registry: string;
 		npm_lifecycle_event: string;
 		LANG: string;
@@ -175,11 +185,13 @@ declare module '$env/dynamic/private' {
 		LESS: string;
 		npm_lifecycle_script: string;
 		SSH_SOCKET_DIR: string;
+		COREPACK_ENABLE_AUTO_PIN: string;
 		NVM_BIN: string;
 		npm_config_user_agent: string;
 		INFOPATH: string;
 		HOMEBREW_CELLAR: string;
 		CONDA_CHANGEPS1: string;
+		CLAUDECODE: string;
 		COLORTERM: string;
 		npm_node_execpath: string;
 		NODE_ENV: string;
