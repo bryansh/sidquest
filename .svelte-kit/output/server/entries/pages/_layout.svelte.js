@@ -1,1 +1,0 @@
-import{v as u,t as p,w as s}from"../../chunks/index.js";import"@tauri-apps/plugin-updater";import"@tauri-apps/plugin-process";import"@tauri-apps/plugin-log";function i(t,o){p(),t.out.push("<!--[!-->"),t.out.push("<!--]-->"),u()}function n(t,o){i(t),t.out.push("<!----> <!---->"),s(t,o,"default",{}),t.out.push("<!---->")}export{n as default};
