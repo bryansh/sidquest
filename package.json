@@ -13,6 +13,7 @@
     "bump:patch": "node scripts/bump-version.js patch",
     "bump:minor": "node scripts/bump-version.js minor",
     "bump:major": "node scripts/bump-version.js major",
+    "release": "pnpm bump:patch && git push && git push --tags",
     "release:patch": "pnpm bump:patch && git push && git push --tags",
     "release:minor": "pnpm bump:minor && git push && git push --tags",
     "release:major": "pnpm bump:major && git push && git push --tags"
