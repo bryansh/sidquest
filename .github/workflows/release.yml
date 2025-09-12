@@ -167,8 +167,10 @@ jobs:
                   try:
                       print(f"Downloading signature for {platform} from {signature_urls[platform]}")
                       with urllib.request.urlopen(signature_urls[platform]) as response:
-                          # The signature is already base64, but we need to read it as text
-                          sig_content = response.read().decode('utf-8').strip()
+                          # Read the raw binary content of the .sig file
+                          sig_binary = response.read()
+                          # Base64 encode the entire binary content
+                          sig_content = base64.b64encode(sig_binary).decode('utf-8')
                           platforms[platform]['signature'] = sig_content
                           print(f"Added signature for {platform}: {sig_content[:50]}...")
                   except Exception as e:
