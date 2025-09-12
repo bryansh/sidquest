@@ -3,6 +3,7 @@
   import { check } from '@tauri-apps/plugin-updater';
   import { relaunch } from '@tauri-apps/plugin-process';
   import { info, error, debug } from '@tauri-apps/plugin-log';
+  import { Modal } from '@skeletonlabs/skeleton-svelte';
 
   let updateState = $state('');
   let showNotification = $state(false);
@@ -109,16 +110,30 @@
   });
 </script>
 
-{#if showNotification}
-  <div class="update-notification">
-    <div class="notification-content">
-      <div class="notification-header">
-        <div class="notification-message">
-          {#if updateState === 'available'}
-            <h3>🚀 SidQuest Update Available</h3>
-            <p>Version {update.version} is ready to install.</p>
-          {:else if updateState === 'installing'}
-            <h3>📦 Installing Update</h3>
+<Modal 
+  open={showNotification}
+  onOpenChange={(e) => (showNotification = e.open)}
+  contentBase="card bg-surface-100-900 p-6 space-y-4 shadow-xl max-w-md mx-4"
+>
+  {#snippet content()}
+    <div class="space-y-4">
+      <h3 class="text-lg font-semibold">
+        {#if updateState === 'available'}
+          🚀 SidQuest Update Available
+        {:else if updateState === 'installing'}
+          📦 Installing Update
+        {:else if updateState === 'complete'}
+          ✅ Update Complete
+        {:else if updateState === 'error'}
+          ❌ Update Error
+        {/if}
+      </h3>
+
+      <div>
+        {#if updateState === 'available'}
+          <p>Version {update.version} is ready to install.</p>
+        {:else if updateState === 'installing'}
+          <div class="space-y-2">
             <p>
               {#if downloadProgress > 0}
                 Downloading... {downloadProgress.toFixed(0)}%
@@ -126,142 +141,33 @@
                 Preparing download...
               {/if}
             </p>
-            <div class="progress-bar">
-              <div class="progress-fill" style="width: {downloadProgress}%"></div>
+            <div class="bg-surface-400 w-full h-3 rounded-full">
+              <div class="bg-primary-500 h-full rounded-full transition-all duration-300" style="width: {downloadProgress}%"></div>
             </div>
-          {:else if updateState === 'complete'}
-            <h3>✅ Update Complete</h3>
-            <p>Restarting SidQuest...</p>
-          {:else if updateState === 'error'}
-            <h3>❌ Update Error</h3>
-            <p>{errorMessage}</p>
-          {/if}
-        </div>
-        
-        <button onclick={dismissNotification} class="dismiss-button" aria-label="Dismiss notification">
-          ✕
-        </button>
+          </div>
+        {:else if updateState === 'complete'}
+          <p>Restarting SidQuest...</p>
+        {:else if updateState === 'error'}
+          <p class="text-error-500">{errorMessage}</p>
+        {/if}
       </div>
-      
+
       {#if updateState === 'available'}
-        <div class="notification-actions">
-          <button onclick={installUpdate} class="action-button primary">
+        <div class="flex gap-2">
+          <button onclick={installUpdate} class="btn variant-filled flex-1">
             Install Now
           </button>
-          <button onclick={dismissNotification} class="action-button secondary">
+          <button onclick={dismissNotification} class="btn variant-soft flex-1">
             Later
+          </button>
+        </div>
+      {:else if updateState === 'error'}
+        <div class="flex justify-end">
+          <button onclick={dismissNotification} class="btn variant-filled">
+            Close
           </button>
         </div>
       {/if}
     </div>
-  </div>
-{/if}
-
-<style>
-  .update-notification {
-    position: fixed;
-    top: 1rem;
-    right: 1rem;
-    z-index: 9999;
-    max-width: 24rem;
-    background: white;
-    border-radius: 0.5rem;
-    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
-    overflow: hidden;
-  }
-
-  .notification-content {
-    padding: 1rem;
-  }
-
-  .notification-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-  }
-
-  .notification-message {
-    flex: 1;
-    margin-right: 0.75rem;
-  }
-
-  .notification-message h3 {
-    font-size: 0.875rem;
-    font-weight: 600;
-    margin: 0 0 0.25rem 0;
-  }
-
-  .notification-message p {
-    font-size: 0.875rem;
-    color: #666;
-    margin: 0;
-  }
-
-  .progress-bar {
-    margin-top: 0.5rem;
-    width: 100%;
-    height: 0.5rem;
-    background: #e5e5e5;
-    border-radius: 0.25rem;
-    overflow: hidden;
-  }
-
-  .progress-fill {
-    height: 100%;
-    background: #ff3e00;
-    border-radius: 0.25rem;
-    transition: width 0.3s ease;
-  }
-
-  .dismiss-button {
-    background: none;
-    border: none;
-    color: #999;
-    cursor: pointer;
-    font-size: 1.25rem;
-    padding: 0;
-    width: 1.5rem;
-    height: 1.5rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .dismiss-button:hover {
-    color: #666;
-  }
-
-  .notification-actions {
-    margin-top: 0.75rem;
-    display: flex;
-    gap: 0.5rem;
-  }
-
-  .action-button {
-    flex: 1;
-    padding: 0.5rem 1rem;
-    font-size: 0.875rem;
-    border: none;
-    border-radius: 0.25rem;
-    cursor: pointer;
-    transition: background-color 0.2s;
-  }
-
-  .action-button.primary {
-    background: #ff3e00;
-    color: white;
-  }
-
-  .action-button.primary:hover {
-    background: #e63600;
-  }
-
-  .action-button.secondary {
-    background: #f5f5f5;
-    color: #333;
-  }
-
-  .action-button.secondary:hover {
-    background: #e5e5e5;
-  }
-</style>
+  {/snippet}
+</Modal>
