@@ -1,6 +1,7 @@
 <script lang="ts">
   import { getCurrentWindow } from '@tauri-apps/api/window';
   import { uiState } from '$lib/state/uiState.svelte';
+  import { authState, signOut } from '$lib/auth/authState.svelte';
 
   async function toggleAlwaysOnTop() {
     uiState.alwaysOnTop = !uiState.alwaysOnTop;
@@ -17,6 +18,15 @@
   </span>
 
   <div class="flex items-center gap-2">
+    {#if authState.user}
+      <span class="text-xs text-[var(--color-text-muted)] mr-1">{authState.user.email}</span>
+      <button
+        onclick={signOut}
+        class="text-xs px-2 py-1 rounded text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] transition-colors"
+      >
+        Sign out
+      </button>
+    {/if}
     <button
       onclick={toggleAlwaysOnTop}
       title={uiState.alwaysOnTop ? 'Unpin from top' : 'Pin on top'}
