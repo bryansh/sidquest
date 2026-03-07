@@ -4,15 +4,17 @@
   import GameSelector from '../sidebar/GameSelector.svelte';
   import EntityTypeList from '../sidebar/EntityTypeList.svelte';
 
-  let { onNewEntityType, onNewEntity }: {
+  let { onNewGame, onNewEntityType, onNewEntity, onSelectEntity }: {
+    onNewGame: () => void;
     onNewEntityType: () => void;
     onNewEntity: (entityTypeId: string) => void;
+    onSelectEntity: (id: string) => void;
   } = $props();
 </script>
 
 <aside class="flex flex-col w-64 min-w-64 h-full border-r border-[var(--color-border)] bg-[var(--color-surface)]">
   <div class="p-3 border-b border-[var(--color-border)]">
-    <GameSelector />
+    <GameSelector onNewGame={onNewGame} />
   </div>
 
   <div class="flex-1 overflow-y-auto p-2">
@@ -21,7 +23,7 @@
         entityTypes={gameState.entityTypes}
         entities={gameState.entities}
         activeEntityId={noteState.activeEntityId}
-        onSelectEntity={(id) => noteState.activeEntityId = id}
+        onSelectEntity={onSelectEntity}
         onNewEntity={onNewEntity}
       />
       <button

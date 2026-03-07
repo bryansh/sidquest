@@ -1,6 +1,7 @@
 <script lang="ts">
-  import { gameState, type Entity } from '$lib/state/gameState.svelte';
-  import { noteState } from '$lib/state/noteState.svelte';
+  import { gameState } from '$lib/state/gameState.svelte';
+  import { noteState, createNote } from '$lib/state/noteState.svelte';
+  import { authState } from '$lib/auth/authState.svelte';
 
   const activeEntity = $derived(
     gameState.entities.find(e => e.id === noteState.activeEntityId) ?? null
@@ -13,6 +14,11 @@
   const activeNote = $derived(
     noteState.notes.find(n => n.id === noteState.activeNoteId) ?? null
   );
+
+  async function handleNewNote() {
+    if (!authState.user || !gameState.activeGameId || !noteState.activeEntityId) return;
+    await createNote(authState.user.id, gameState.activeGameId, noteState.activeEntityId, 'Untitled');
+  }
 </script>
 
 <main class="flex-1 flex flex-col h-full overflow-hidden">
@@ -20,6 +26,7 @@
     <header class="flex items-center justify-between px-4 py-3 border-b border-[var(--color-border)]">
       <h2 class="text-lg font-semibold">{activeEntity.name}</h2>
       <button
+        onclick={handleNewNote}
         class="text-sm px-3 py-1 rounded bg-[var(--color-accent)] hover:bg-[var(--color-accent-hover)] text-white transition-colors"
       >
         + Note
@@ -42,10 +49,10 @@
     <div class="flex-1 overflow-y-auto p-4">
       {#if activeNote}
         <div class="prose prose-invert max-w-none">
-          <p class="text-[var(--color-text-muted)]">Editor will go here</p>
+          <p class="text-[var(--color-text-muted)] italic">Editor will be integrated next...</p>
         </div>
       {:else}
-        <p class="text-[var(--color-text-muted)]">Select or create a note.</p>
+        <p class="text-[var(--color-text-muted)]">Create a note to get started.</p>
       {/if}
     </div>
   {:else}

@@ -1,5 +1,7 @@
 <script lang="ts">
-  import { gameState } from '$lib/state/gameState.svelte';
+  import { gameState, selectGame } from '$lib/state/gameState.svelte';
+
+  let { onNewGame }: { onNewGame: () => void } = $props();
 
   const activeGame = $derived(
     gameState.games.find(g => g.id === gameState.activeGameId) ?? null
@@ -21,7 +23,7 @@
     <div class="absolute top-full left-0 right-0 mt-1 rounded bg-[var(--color-bg)] border border-[var(--color-border)] shadow-lg z-50">
       {#each gameState.games as game}
         <button
-          onclick={() => { gameState.activeGameId = game.id; dropdownOpen = false; }}
+          onclick={() => { selectGame(game.id); dropdownOpen = false; }}
           class="w-full text-left px-3 py-2 text-sm hover:bg-[var(--color-surface-hover)] transition-colors {game.id === gameState.activeGameId ? 'text-[var(--color-accent)]' : ''}"
         >
           {game.name}
@@ -29,7 +31,7 @@
       {/each}
       <div class="border-t border-[var(--color-border)]">
         <button
-          onclick={() => { dropdownOpen = false; /* TODO: open new game modal */ }}
+          onclick={() => { dropdownOpen = false; onNewGame(); }}
           class="w-full text-left px-3 py-2 text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] transition-colors"
         >
           + New Game

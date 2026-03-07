@@ -1,13 +1,30 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { authState, checkSession } from '$lib/auth/authState.svelte';
+  import { loadGames, createGame, createEntityType, createEntity, gameState } from '$lib/state/gameState.svelte';
+  import { selectEntity } from '$lib/state/noteState.svelte';
   import SignIn from '$lib/components/auth/SignIn.svelte';
   import TitleBar from '$lib/components/layout/TitleBar.svelte';
   import Sidebar from '$lib/components/layout/Sidebar.svelte';
   import MainPanel from '$lib/components/layout/MainPanel.svelte';
+  import NewGameModal from '$lib/components/modals/NewGameModal.svelte';
+  import NewEntityTypeModal from '$lib/components/modals/NewEntityTypeModal.svelte';
+  import NewEntityModal from '$lib/components/modals/NewEntityModal.svelte';
 
-  onMount(() => {
-    checkSession();
+  let showNewGame = $state(false);
+  let showNewEntityType = $state(false);
+  let showNewEntity = $state(false);
+  let newEntityTypeId = $state('');
+
+  onMount(async () => {
+    await checkSession();
+  });
+
+  // Load games when user is authenticated
+  $effect(() => {
+    if (authState.user) {
+      loadGames(authState.user.id);
+    }
   });
 </script>
 
@@ -22,10 +39,44 @@
     <TitleBar />
     <div class="flex flex-1 overflow-hidden">
       <Sidebar
-        onNewEntityType={() => {/* TODO */}}
-        onNewEntity={(typeId) => {/* TODO */}}
+        onNewGame={() => showNewGame = true}
+        onNewEntityType={() => showNewEntityType = true}
+        onNewEntity={(typeId) => { newEntityTypeId = typeId; showNewEntity = true; }}
+        onSelectEntity={(id) => selectEntity(id)}
       />
       <MainPanel />
     </div>
   </div>
+
+  {#if showNewGame}
+    <NewGameModal
+      onClose={() => showNewGame = false}
+      onCreate={async (name, description) => {
+        await createGame(authState.user!.id, name, description);
+        showNewGame = false;
+      }}
+    />
+  {/if}
+
+  {#if showNewEntityType}
+    <NewEntityTypeModal
+      onClose={() => showNewEntityType = false}
+      onCreate={async (name, icon) => {
+        await createEntityType(authState.user!.id, name, { icon });
+        showNewEntityType = false;
+      }}
+    />
+  {/if}
+
+  {#if showNewEntity}
+    <NewEntityModal
+      entityTypes={gameState.entityTypes}
+      defaultTypeId={newEntityTypeId}
+      onClose={() => showNewEntity = false}
+      onCreate={async (entityTypeId, name, summary) => {
+        await createEntity(authState.user!.id, entityTypeId, name, { summary });
+        showNewEntity = false;
+      }}
+    />
+  {/if}
 {/if}
