@@ -1,7 +1,8 @@
 <script lang="ts">
   import { gameState } from '$lib/state/gameState.svelte';
-  import { noteState, createNote } from '$lib/state/noteState.svelte';
+  import { noteState, createNote, updateNoteContent } from '$lib/state/noteState.svelte';
   import { authState } from '$lib/auth/authState.svelte';
+  import NoteEditor from '../editor/NoteEditor.svelte';
 
   const activeEntity = $derived(
     gameState.entities.find(e => e.id === noteState.activeEntityId) ?? null
@@ -46,13 +47,18 @@
       </div>
     {/if}
 
-    <div class="flex-1 overflow-y-auto p-4">
+    <div class="flex-1 overflow-hidden">
       {#if activeNote}
-        <div class="prose prose-invert max-w-none">
-          <p class="text-[var(--color-text-muted)] italic">Editor will be integrated next...</p>
-        </div>
+        {#key activeNote.id}
+          <NoteEditor
+            content={activeNote.content}
+            onSave={(content) => updateNoteContent(activeNote.id, content)}
+          />
+        {/key}
       {:else}
-        <p class="text-[var(--color-text-muted)]">Create a note to get started.</p>
+        <div class="flex-1 flex items-center justify-center p-4">
+          <p class="text-[var(--color-text-muted)]">Create a note to get started.</p>
+        </div>
       {/if}
     </div>
   {:else}
