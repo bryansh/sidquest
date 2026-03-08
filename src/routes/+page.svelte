@@ -10,7 +10,9 @@
   import NewGameModal from '$lib/components/modals/NewGameModal.svelte';
   import NewEntityTypeModal from '$lib/components/modals/NewEntityTypeModal.svelte';
   import NewEntityModal from '$lib/components/modals/NewEntityModal.svelte';
+  import SearchModal from '$lib/components/modals/SearchModal.svelte';
 
+  let showSearch = $state(false);
   let showNewGame = $state(false);
   let showNewEntityType = $state(false);
   let showNewEntity = $state(false);
@@ -18,6 +20,15 @@
 
   onMount(async () => {
     await checkSession();
+
+    const handleKeydown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        showSearch = !showSearch;
+      }
+    };
+    window.addEventListener('keydown', handleKeydown);
+    return () => window.removeEventListener('keydown', handleKeydown);
   });
 
   // Load games when user is authenticated
@@ -78,5 +89,9 @@
         showNewEntity = false;
       }}
     />
+  {/if}
+
+  {#if showSearch}
+    <SearchModal onClose={() => showSearch = false} />
   {/if}
 {/if}
