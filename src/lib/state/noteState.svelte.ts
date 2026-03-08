@@ -1,4 +1,6 @@
 import * as noteQueries from '$lib/db/queries/notes';
+import { syncNoteLinks } from '$lib/db/queries/links';
+import { extractWikilinkIds } from '$lib/wikilinks';
 
 export interface Note {
   id: string;
@@ -46,8 +48,15 @@ export async function createNote(userId: string, gameId: string, entityId: strin
   return note;
 }
 
-export async function updateNoteContent(noteId: string, content: any) {
+export async function updateNoteContent(noteId: string, content: any, userId?: string, gameId?: string) {
   await noteQueries.updateNote(noteId, { content });
   const note = noteState.notes.find(n => n.id === noteId);
   if (note) note.content = content;
+
+  // Sync wikilinks
+  const targetIds = extractWikilinkIds(content);
+  const nGameId = gameId || note?.gameId;
+  if (nGameId && userId) {
+    await syncNoteLinks(noteId, targetIds, nGameId, userId);
+  }
 }

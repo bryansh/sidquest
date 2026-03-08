@@ -1,6 +1,7 @@
 <script lang="ts">
   import { Tipex, defaultExtensions } from '@friendofsvelte/tipex';
   import Placeholder from '@tiptap/extension-placeholder';
+  import { WikilinkExtension } from './WikilinkExtension';
   import type { EditorEvents } from '@tiptap/core';
   import { generateHTML } from '@tiptap/core';
 
@@ -15,6 +16,7 @@
   const extensions = [
     ...defaultExtensions,
     Placeholder.configure({ placeholder: 'Start writing...' }),
+    WikilinkExtension,
   ];
 
   function getInitialBody(): string {

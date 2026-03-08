@@ -52,7 +52,7 @@
         {#key activeNote.id}
           <NoteEditor
             content={activeNote.content}
-            onSave={(content) => updateNoteContent(activeNote.id, content)}
+            onSave={(content) => updateNoteContent(activeNote.id, content, authState.user?.id, activeNote.gameId)}
           />
         {/key}
       {:else}
