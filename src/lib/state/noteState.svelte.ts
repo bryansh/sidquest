@@ -48,6 +48,14 @@ export async function createNote(userId: string, gameId: string, entityId: strin
   return note;
 }
 
+export async function renameNote(noteId: string, title: string) {
+  const trimmed = title.trim();
+  if (!trimmed) return;
+  await noteQueries.updateNote(noteId, { title: trimmed });
+  const note = noteState.notes.find(n => n.id === noteId);
+  if (note) note.title = trimmed;
+}
+
 export async function updateNoteContent(noteId: string, content: any, userId?: string, gameId?: string) {
   await noteQueries.updateNote(noteId, { content });
   const note = noteState.notes.find(n => n.id === noteId);

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { Dialog } from 'bits-ui';
   import type { EntityType } from '$lib/state/gameState.svelte';
 
   let { entityTypes, defaultTypeId, onClose, onCreate }: {
@@ -22,38 +23,41 @@
   }
 </script>
 
-<div class="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onclick={onClose} role="dialog">
-  <div class="w-full max-w-md p-5 rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)]" onclick={(e) => e.stopPropagation()}>
-    <h2 class="text-lg font-semibold mb-4">New Entity</h2>
-    <form onsubmit={handleSubmit} class="flex flex-col gap-3">
-      <select
-        bind:value={entityTypeId}
-        class="px-3 py-2 rounded bg-[var(--color-bg)] border border-[var(--color-border)] text-sm text-[var(--color-text)] focus:outline-none focus:border-[var(--color-accent)]"
-      >
-        {#each entityTypes as et}
-          <option value={et.id}>{et.icon ? et.icon + ' ' : ''}{et.name}</option>
-        {/each}
-      </select>
-      <input
-        type="text"
-        placeholder="Entity name"
-        bind:value={name}
-        required
-        autofocus
-        class="px-3 py-2 rounded bg-[var(--color-bg)] border border-[var(--color-border)] text-sm text-[var(--color-text)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent)]"
-      />
-      <input
-        type="text"
-        placeholder="Summary (optional)"
-        bind:value={summary}
-        class="px-3 py-2 rounded bg-[var(--color-bg)] border border-[var(--color-border)] text-sm text-[var(--color-text)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent)]"
-      />
-      <div class="flex justify-end gap-2 mt-2">
-        <button type="button" onclick={onClose} class="px-3 py-1.5 text-sm rounded text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] transition-colors">Cancel</button>
-        <button type="submit" disabled={saving || !name.trim()} class="px-3 py-1.5 text-sm rounded bg-[var(--color-accent)] hover:bg-[var(--color-accent-hover)] text-white transition-colors disabled:opacity-50">
-          {saving ? 'Creating...' : 'Create'}
-        </button>
-      </div>
-    </form>
-  </div>
-</div>
+<Dialog.Root open onOpenChange={(open) => { if (!open) onClose(); }}>
+  <Dialog.Portal>
+    <Dialog.Overlay class="fixed inset-0 bg-black/60 z-50" />
+    <Dialog.Content class="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md p-5 rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] z-50">
+      <Dialog.Title class="text-lg font-semibold mb-4">New Entity</Dialog.Title>
+      <form onsubmit={handleSubmit} class="flex flex-col gap-3">
+        <select
+          bind:value={entityTypeId}
+          class="px-3 py-2 rounded bg-[var(--color-bg)] border border-[var(--color-border)] text-sm text-[var(--color-text)] focus:outline-none focus:border-[var(--color-accent)]"
+        >
+          {#each entityTypes as et}
+            <option value={et.id}>{et.icon ? et.icon + ' ' : ''}{et.name}</option>
+          {/each}
+        </select>
+        <input
+          type="text"
+          placeholder="Entity name"
+          bind:value={name}
+          required
+          autofocus
+          class="px-3 py-2 rounded bg-[var(--color-bg)] border border-[var(--color-border)] text-sm text-[var(--color-text)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent)]"
+        />
+        <input
+          type="text"
+          placeholder="Summary (optional)"
+          bind:value={summary}
+          class="px-3 py-2 rounded bg-[var(--color-bg)] border border-[var(--color-border)] text-sm text-[var(--color-text)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent)]"
+        />
+        <div class="flex justify-end gap-2 mt-2">
+          <Dialog.Close class="px-3 py-1.5 text-sm rounded text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] transition-colors">Cancel</Dialog.Close>
+          <button type="submit" disabled={saving || !name.trim()} class="px-3 py-1.5 text-sm rounded bg-[var(--color-accent)] hover:bg-[var(--color-accent-hover)] text-white transition-colors disabled:opacity-50">
+            {saving ? 'Creating...' : 'Create'}
+          </button>
+        </div>
+      </form>
+    </Dialog.Content>
+  </Dialog.Portal>
+</Dialog.Root>

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { Dialog } from 'bits-ui';
   import { searchNotes, type SearchResult } from '$lib/db/queries/search';
   import { gameState } from '$lib/state/gameState.svelte';
   import { authState } from '$lib/auth/authState.svelte';
@@ -41,59 +42,54 @@
     } else if (e.key === 'Enter' && results.length > 0) {
       e.preventDefault();
       selectResult(results[selectedIndex]);
-    } else if (e.key === 'Escape') {
-      onClose();
     }
   }
 </script>
 
-<div
-  class="fixed inset-0 bg-black/60 flex items-start justify-center pt-[15vh] z-50"
-  onclick={onClose}
-  onkeydown={handleKeydown}
-  role="dialog"
-  tabindex="-1"
->
-  <div
-    class="w-full max-w-lg rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] shadow-2xl overflow-hidden"
-    onclick={(e) => e.stopPropagation()}
-    role="presentation"
-  >
-    <div class="flex items-center px-4 py-3 border-b border-[var(--color-border)]">
-      <input
-        type="text"
-        placeholder="Search notes..."
-        bind:value={query}
-        oninput={handleInput}
-        autofocus
-        class="flex-1 bg-transparent text-sm text-[var(--color-text)] placeholder:text-[var(--color-text-muted)] outline-none"
-      />
-      {#if searching}
-        <span class="text-xs text-[var(--color-text-muted)] ml-2">Searching...</span>
-      {/if}
-    </div>
-
-    {#if results.length > 0}
-      <div class="max-h-80 overflow-y-auto py-1">
-        {#each results as result, i}
-          <button
-            onclick={() => selectResult(result)}
-            class="w-full text-left px-4 py-2 flex flex-col gap-0.5 transition-colors {i === selectedIndex ? 'bg-[var(--color-surface-hover)]' : 'hover:bg-[var(--color-surface-hover)]'}"
-          >
-            <div class="flex items-center gap-2">
-              <span class="text-sm font-medium text-[var(--color-text)]">{result.noteTitle}</span>
-              <span class="text-xs text-[var(--color-text-muted)]">{result.entityName} &middot; {result.typeName}</span>
-            </div>
-            {#if result.excerpt}
-              <span class="text-xs text-[var(--color-text-muted)] truncate">{result.excerpt}</span>
-            {/if}
-          </button>
-        {/each}
+<Dialog.Root open onOpenChange={(open) => { if (!open) onClose(); }}>
+  <Dialog.Portal>
+    <Dialog.Overlay class="fixed inset-0 bg-black/60 z-50" />
+    <Dialog.Content
+      onkeydown={handleKeydown}
+      class="fixed top-[15vh] left-1/2 -translate-x-1/2 w-full max-w-lg rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] shadow-2xl overflow-hidden z-50"
+    >
+      <Dialog.Title class="sr-only">Search Notes</Dialog.Title>
+      <div class="flex items-center px-4 py-3 border-b border-[var(--color-border)]">
+        <input
+          type="text"
+          placeholder="Search notes..."
+          bind:value={query}
+          oninput={handleInput}
+          autofocus
+          class="flex-1 bg-transparent text-sm text-[var(--color-text)] placeholder:text-[var(--color-text-muted)] outline-none"
+        />
+        {#if searching}
+          <span class="text-xs text-[var(--color-text-muted)] ml-2">Searching...</span>
+        {/if}
       </div>
-    {:else if query.trim() && !searching}
-      <div class="px-4 py-6 text-center text-sm text-[var(--color-text-muted)]">No results found.</div>
-    {:else if !query.trim()}
-      <div class="px-4 py-6 text-center text-sm text-[var(--color-text-muted)]">Type to search across all notes.</div>
-    {/if}
-  </div>
-</div>
+
+      {#if results.length > 0}
+        <div class="max-h-80 overflow-y-auto py-1">
+          {#each results as result, i}
+            <button
+              onclick={() => selectResult(result)}
+              class="w-full text-left px-4 py-2 flex flex-col gap-0.5 transition-colors {i === selectedIndex ? 'bg-[var(--color-surface-hover)]' : 'hover:bg-[var(--color-surface-hover)]'}"
+            >
+              <div class="flex items-center gap-2">
+                <span class="text-sm font-medium text-[var(--color-text)]">{result.noteTitle}</span>
+                <span class="text-xs text-[var(--color-text-muted)]">{result.entityName} &middot; {result.typeName}</span>
+              </div>
+              {#if result.excerpt}
+                <span class="text-xs text-[var(--color-text-muted)] truncate">{result.excerpt}</span>
+              {/if}
+            </button>
+          {/each}
+        </div>
+      {:else if query.trim() && !searching}
+        <div class="px-4 py-6 text-center text-sm text-[var(--color-text-muted)]">No results found.</div>
+      {:else if !query.trim()}
+        <div class="px-4 py-6 text-center text-sm text-[var(--color-text-muted)]">Type to search across all notes.</div>
+      {/if}
+    </Dialog.Content>
+  </Dialog.Portal>
+</Dialog.Root>
