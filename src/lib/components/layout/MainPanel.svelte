@@ -3,6 +3,7 @@
   import { noteState, createNote, updateNoteContent } from '$lib/state/noteState.svelte';
   import { authState } from '$lib/auth/authState.svelte';
   import NoteEditor from '../editor/NoteEditor.svelte';
+  import BacklinksPanel from '../editor/BacklinksPanel.svelte';
 
   const activeEntity = $derived(
     gameState.entities.find(e => e.id === noteState.activeEntityId) ?? null
@@ -54,6 +55,7 @@
             content={activeNote.content}
             onSave={(content) => updateNoteContent(activeNote.id, content, authState.user?.id, activeNote.gameId)}
           />
+          <BacklinksPanel noteId={activeNote.id} />
         {/key}
       {:else}
         <div class="flex-1 flex items-center justify-center p-4">
