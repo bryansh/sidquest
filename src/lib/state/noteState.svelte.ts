@@ -23,6 +23,7 @@ export const noteState = $state<{
 export async function selectEntity(entityId: string) {
   noteState.activeEntityId = entityId;
   const rows = await noteQueries.getNotes(entityId);
+  console.log('[selectEntity] loaded notes:', rows.map(r => ({ id: r.id, title: r.title, hasContent: !!r.content })));
   noteState.notes = rows.map(r => ({
     id: r.id,
     entityId: r.entityId,

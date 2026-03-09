@@ -1,5 +1,6 @@
 <script lang="ts">
   import { Tipex, defaultExtensions } from '@friendofsvelte/tipex';
+  import StarterKit from '@tiptap/starter-kit';
   import Placeholder from '@tiptap/extension-placeholder';
   import { WikilinkExtension } from './WikilinkExtension';
   import type { EditorEvents } from '@tiptap/core';
@@ -7,7 +8,7 @@
 
   let { content, onSave }: {
     content: any;
-    onSave: (content: any) => void;
+    onSave: (content: any) => Promise<void> | void;
   } = $props();
 
   let saveTimer: ReturnType<typeof setTimeout> | null = null;
@@ -19,12 +20,19 @@
     WikilinkExtension,
   ];
 
+  // StarterKit provides a complete schema (doc, text, paragraph, etc.) for generateHTML
+  const htmlExtensions = [StarterKit, WikilinkExtension];
+
   function getInitialBody(): string {
+    console.log('[NoteEditor] initializing with content:', content);
     if (!content) return '';
     if (typeof content === 'string') return content;
     try {
-      return generateHTML(content, extensions);
-    } catch {
+      const html = generateHTML(content, htmlExtensions);
+      console.log('[NoteEditor] generated HTML length:', html.length);
+      return html;
+    } catch (e) {
+      console.error('[NoteEditor] generateHTML failed:', e);
       return '';
     }
   }
@@ -32,11 +40,16 @@
   function handleUpdate({ editor }: EditorEvents['update']) {
     if (saveTimer) clearTimeout(saveTimer);
     saveStatus = 'idle';
-    saveTimer = setTimeout(() => {
+    saveTimer = setTimeout(async () => {
       const json = editor.getJSON();
       saveStatus = 'saving';
-      onSave(json);
-      setTimeout(() => { saveStatus = 'saved'; }, 300);
+      try {
+        await onSave(json);
+        saveStatus = 'saved';
+      } catch (e) {
+        console.error('Failed to save note:', e);
+        saveStatus = 'idle';
+      }
     }, 1500);
   }
 </script>

@@ -18,7 +18,10 @@
         "height": 700,
         "decorations": false,
         "transparent": true,
-        "alwaysOnTop": true,
+        "alwaysOnTop": false,
+        "resizable": true,
+        "minWidth": 700,
+        "minHeight": 400,
         "skipTaskbar": false,
         "visible": false,
         "center": true
@@ -39,8 +42,5 @@
       "icons/icon.ico"
     ]
   },
-  "plugins": {
-    "global-shortcut": {},
-    "store": {}
-  }
+  "plugins": {}
 }

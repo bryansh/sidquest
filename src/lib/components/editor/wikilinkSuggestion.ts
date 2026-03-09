@@ -69,13 +69,14 @@ export function createWikilinkSuggestion(): Omit<SuggestionOptions<WikilinkItem>
 
           el.appendChild(titleSpan);
           el.appendChild(metaSpan);
-          el.addEventListener('click', () => selectItem(index));
+          el.addEventListener('mousedown', (e) => { e.preventDefault(); selectItem(index); });
           container.appendChild(el);
         });
       }
 
       function selectItem(index: number) {
         const item = items[index];
+        console.log('[wikilink] selectItem', index, item, !!commandFn);
         if (item && commandFn) {
           commandFn({ id: item.noteId, label: item.label, noteId: item.noteId } as any);
         }
