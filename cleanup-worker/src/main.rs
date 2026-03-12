@@ -4,16 +4,21 @@ use std::num::NonZeroU32;
 
 const SYSTEM_PROMPT: &str = r#"You are a note organizer for a game companion app. Clean up the following note.
 
-CRITICAL RULES:
-- PRESERVE all [[wikilinks]] exactly as written including the double brackets. [[Elara]] must remain [[Elara]], NOT Elara. This is the most important rule.
-- PRESERVE all factual content. Do not drop any details, names, numbers, or items.
-- Do NOT invent any new information.
+RULES (in priority order):
 
-ORGANIZE: Group related information into clear sections with ## headers. Infer appropriate section topics from the content itself (e.g., characters, locations, items, combat, objectives, whatever fits the note).
+1. WIKILINKS ARE SACRED. Every [[name]] in the input MUST appear in your output with its [[ and ]] brackets intact. The syntax is exactly two opening brackets [[ and exactly two closing brackets ]]. Do not remove, rename, or unbracket any wikilink. Do not add new wikilinks that were not in the input. Even if a linked name only appears once or is minor, it MUST still appear as a [[wikilink]] in your output.
+
+2. PRESERVE all factual content. Do not drop details, names, numbers, or items. Every fact from the input must appear in the output. If someone is mentioned — even briefly — they must still appear.
+
+3. Do NOT invent new information. Only reorganize what is given. Do NOT add [[brackets]] around names that were not already bracketed in the input.
+
+4. KEEP the original voice. If the note is written in first person ("I", "we"), keep it in first person. Do NOT replace "I" with "the narrator", "the player", or any other label.
+
+FORMAT: Group related information into clear sections with ## headers. Use - for bullet points. Infer section topics from the content (e.g., characters, locations, items, combat, objectives). Use only single-level bullets (no nested/indented sub-bullets).
 
 STYLE: Concise but complete. Tighten rambling prose but keep all facts. Casual tone.
 
-Return ONLY the cleaned-up note. No commentary, no preamble."#;
+Return ONLY the cleaned-up note. No commentary, no preamble, no explanation."#;
 
 #[derive(Deserialize)]
 struct Request {
@@ -31,6 +36,8 @@ struct Response {
 }
 
 fn main() {
+    use std::io::Write;
+
     let mut input = String::new();
     std::io::stdin().read_to_string(&mut input).unwrap_or_default();
 
@@ -38,7 +45,8 @@ fn main() {
         Ok(r) => r,
         Err(e) => {
             let resp = Response { ok: false, result: None, error: Some(format!("Invalid input: {}", e)) };
-            println!("{}", serde_json::to_string(&resp).unwrap());
+            let _ = writeln!(std::io::stdout(), "{}", serde_json::to_string(&resp).unwrap());
+            let _ = std::io::stdout().flush();
             std::process::exit(1);
         }
     };
@@ -56,10 +64,12 @@ fn main() {
         Err(e) => Response { ok: false, result: None, error: Some(e) },
     };
 
-    println!("{}", serde_json::to_string(&resp).unwrap());
-    if !resp.ok {
-        std::process::exit(1);
+    if let Some(ref e) = resp.error {
+        eprintln!("[cleanup-worker] Error: {}", e);
     }
+    eprintln!("[cleanup-worker] Writing response, ok={}", resp.ok);
+    let _ = writeln!(std::io::stdout(), "{}", serde_json::to_string(&resp).unwrap());
+    let _ = std::io::stdout().flush();
 }
 
 fn run_inference(model_path: &str, note_text: &str) -> Result<String, String> {
@@ -88,9 +98,9 @@ fn run_inference(model_path: &str, note_text: &str) -> Result<String, String> {
         .new_context(&backend, ctx_params)
         .map_err(|e| format!("Failed to create context: {}", e))?;
 
-    // Format prompt with ChatML template
+    // Format prompt with Gemma 3 chat template (system prompt goes in user turn)
     let prompt = format!(
-        "<|im_start|>system\n{}<|im_end|>\n<|im_start|>user\n{}<|im_end|>\n<|im_start|>assistant\n",
+        "<start_of_turn>user\n{}\n\n{}<end_of_turn>\n<start_of_turn>model\n",
         SYSTEM_PROMPT, note_text
     );
 
@@ -98,19 +108,24 @@ fn run_inference(model_path: &str, note_text: &str) -> Result<String, String> {
         .str_to_token(&prompt, AddBos::Always)
         .map_err(|e| format!("Tokenization failed: {}", e))?;
 
-    // Create batch and add prompt tokens
-    let mut batch = LlamaBatch::new(512, 1);
-    let last_idx = (tokens.len() - 1) as i32;
-    for (i, &token) in tokens.iter().enumerate() {
-        let is_last = i as i32 == last_idx;
-        batch
-            .add(token, i as i32, &[0], is_last)
-            .map_err(|e| format!("Batch add failed: {}", e))?;
-    }
+    // Feed prompt tokens in chunks that fit the batch size
+    eprintln!("[cleanup-worker] Prompt tokens: {}", tokens.len());
+    let batch_size = 512;
+    let mut batch = LlamaBatch::new(batch_size, 1);
+    let total = tokens.len();
 
-    // Decode prompt
-    ctx.decode(&mut batch)
-        .map_err(|e| format!("Decode failed: {}", e))?;
+    for chunk_start in (0..total).step_by(batch_size) {
+        batch.clear();
+        let chunk_end = (chunk_start + batch_size).min(total);
+        for i in chunk_start..chunk_end {
+            let is_last = i == total - 1;
+            batch
+                .add(tokens[i], i as i32, &[0], is_last)
+                .map_err(|e| format!("Batch add failed: {}", e))?;
+        }
+        ctx.decode(&mut batch)
+            .map_err(|e| format!("Decode failed: {}", e))?;
+    }
 
     // Set up sampler: low temperature for deterministic cleanup
     let mut sampler = LlamaSampler::chain_simple([
@@ -138,8 +153,8 @@ fn run_inference(model_path: &str, note_text: &str) -> Result<String, String> {
             .map_err(|e| format!("Token to string failed: {}", e))?;
 
         // Stop at end-of-turn marker
-        if output.ends_with("<|im_end") || token_str.contains("<|im_end|>") {
-            if let Some(pos) = output.rfind("<|im_end") {
+        if output.ends_with("<end_of_tur") || token_str.contains("<end_of_turn>") {
+            if let Some(pos) = output.rfind("<end_of_tur") {
                 output.truncate(pos);
             }
             break;

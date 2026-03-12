@@ -31,6 +31,10 @@ export const WikilinkExtension = Mention.extend({
     return [{ tag: `span[data-type="${this.name}"]` }];
   },
 
+  renderText({ node }) {
+    return `[[${node.attrs.label || ''}]]`;
+  },
+
   renderHTML({ node, HTMLAttributes }) {
     const isResolved = !!(node.attrs.noteId || node.attrs.entityId);
     return [

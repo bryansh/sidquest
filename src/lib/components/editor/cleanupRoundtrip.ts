@@ -80,6 +80,37 @@ function serializeNode(node: TipTapNode, wlMap: Map<string, WikilinkAttrs>): str
 }
 
 /**
+ * Re-wrap known wikilink labels that the LLM may have stripped brackets from.
+ * Matches bare entity names (whole-word, case-insensitive) and restores [[label]].
+ * Skips names already wrapped in [[ ]].
+ */
+export function restoreWikilinks(text: string, wikilinkMap: Map<string, WikilinkAttrs>): string {
+  if (wikilinkMap.size === 0) {
+    // No known wikilinks — strip any the model invented
+    return text.replace(/\[\[([^\]]+)\]\]/g, '$1');
+  }
+
+  // Sort labels longest-first so "Elara the Wise" matches before "Elara"
+  const labels = Array.from(wikilinkMap.values())
+    .map(a => a.label)
+    .sort((a, b) => b.length - a.length);
+
+  for (const label of labels) {
+    const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    // Match whole-word occurrences NOT already inside [[ ]]
+    const pattern = new RegExp(`(?<!\\[\\[)\\b(${escaped})\\b(?!\\]\\])`, 'gi');
+    text = text.replace(pattern, `[[${label}]]`);
+  }
+
+  // Strip brackets from any wikilinks the model invented (not in our map)
+  text = text.replace(/\[\[([^\]]+)\]\]/g, (match, label) => {
+    return wikilinkMap.has(label.toLowerCase()) ? match : label;
+  });
+
+  return text;
+}
+
+/**
  * Parse cleaned-up text back into a TipTap JSON document.
  * Re-links [[label]] occurrences to their original wikilink attrs using the map.
  */
@@ -116,11 +147,11 @@ export function deserialize(text: string, wikilinkMap: Map<string, WikilinkAttrs
       continue;
     }
 
-    // Bullet list item
-    if (line.match(/^[-*+]\s/)) {
+    // Bullet list item (supports optional leading whitespace for indented sub-bullets)
+    if (line.match(/^\s*[-*+]\s/)) {
       const items: TipTapNode[] = [];
-      while (i < lines.length && lines[i].match(/^[-*+]\s/)) {
-        const itemText = lines[i].replace(/^[-*+]\s/, '');
+      while (i < lines.length && lines[i].match(/^\s*[-*+]\s/)) {
+        const itemText = lines[i].replace(/^\s*[-*+]\s/, '');
         items.push({
           type: 'listItem',
           content: [{ type: 'paragraph', content: inlineToNodes(itemText, wikilinkMap) }],

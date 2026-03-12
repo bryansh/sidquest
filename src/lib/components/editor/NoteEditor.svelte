@@ -7,6 +7,7 @@
   import { generateHTML } from '@tiptap/core';
   import { invoke } from '@tauri-apps/api/core';
   import { appDataDir, join } from '@tauri-apps/api/path';
+  import { serialize, deserialize, restoreWikilinks } from './cleanupRoundtrip';
 
   let { content, onSave }: {
     content: any;
@@ -18,6 +19,7 @@
   let editorInstance = $state<Editor | null>(null);
   let listening = $state(false);
   let transcribing = $state(false);
+  let cleaningUp = $state(false);
 
   async function getModelPath(): Promise<string> {
     const dataDir = await appDataDir();
@@ -52,6 +54,44 @@
       listening = true;
     } catch (e) {
       console.error('[Dictation] Failed to start recording:', e);
+    }
+  }
+
+  async function cleanupNote() {
+    if (cleaningUp || !editorInstance) return;
+    cleaningUp = true;
+    try {
+      const doc = editorInstance.getJSON();
+      const { text, wikilinkMap } = serialize(doc);
+      console.log('[Cleanup] Serialized text:', text);
+      console.log('[Cleanup] Wikilink map:', Object.fromEntries(wikilinkMap));
+
+      if (!text.trim()) return;
+
+      // Ensure model is downloaded
+      const hasModel = await invoke<boolean>('check_cleanup_model');
+      if (!hasModel) {
+        console.log('[Cleanup] Model not downloaded, triggering download...');
+        await invoke('download_cleanup_model');
+      }
+
+      const raw = await invoke<string>('cleanup_note', { text });
+      console.log('[Cleanup] Raw model output:', raw);
+      const cleaned = restoreWikilinks(raw, wikilinkMap);
+      console.log('[Cleanup] After restoreWikilinks:', cleaned);
+      const newDoc = deserialize(cleaned, wikilinkMap);
+      console.log('[Cleanup] Deserialized doc:', JSON.stringify(newDoc, null, 2));
+
+      // Replace editor content and trigger save
+      editorInstance.commands.setContent(newDoc);
+      const json = editorInstance.getJSON();
+      saveStatus = 'saving';
+      await onSave(json);
+      saveStatus = 'saved';
+    } catch (e) {
+      console.error('[Cleanup] Error:', e);
+    } finally {
+      cleaningUp = false;
     }
   }
 
@@ -99,6 +139,19 @@
     {:else if saveStatus === 'saved'}
       <span>Saved</span>
     {/if}
+    <button
+      onclick={cleanupNote}
+      disabled={cleaningUp}
+      title="AI cleanup: organize and tidy this note"
+      class="px-2 py-1 rounded transition-colors cursor-pointer disabled:cursor-wait {cleaningUp ? 'text-[var(--color-accent)] animate-pulse' : 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)]'}"
+      type="button"
+    >
+      {#if cleaningUp}
+        Cleaning up...
+      {:else}
+        Cleanup
+      {/if}
+    </button>
     <button
       onclick={toggleDictation}
       disabled={transcribing}

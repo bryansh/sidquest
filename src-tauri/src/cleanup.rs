@@ -1,8 +1,8 @@
 use std::io::Write;
 use tauri::{AppHandle, Emitter, Manager};
 
-const MODEL_FILENAME: &str = "qwen2.5-3b-instruct-q4_k_m.gguf";
-const MODEL_URL: &str = "https://huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF/resolve/main/qwen2.5-3b-instruct-q4_k_m.gguf";
+const MODEL_FILENAME: &str = "google_gemma-3-4b-it-Q4_K_M.gguf";
+const MODEL_URL: &str = "https://huggingface.co/bartowski/google_gemma-3-4b-it-GGUF/resolve/main/google_gemma-3-4b-it-Q4_K_M.gguf";
 
 fn model_path(app: &AppHandle) -> Result<std::path::PathBuf, String> {
     let dir = app
@@ -100,27 +100,26 @@ pub async fn cleanup_note(
         let mut child = std::process::Command::new(&worker_path)
             .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::inherit())
             .spawn()
             .map_err(|e| format!("Failed to spawn cleanup worker: {}", e))?;
 
-        if let Some(mut stdin) = child.stdin.take() {
+        // Write request and explicitly close stdin so the worker sees EOF
+        {
+            let mut stdin = child.stdin.take()
+                .ok_or("Failed to open worker stdin".to_string())?;
             serde_json::to_writer(&mut stdin, &request)
                 .map_err(|e| format!("Failed to write to worker: {}", e))?;
             stdin.flush().map_err(|e| format!("Failed to flush stdin: {}", e))?;
+            // stdin drops here, closing the pipe
         }
 
         let output = child
             .wait_with_output()
             .map_err(|e| format!("Worker failed: {}", e))?;
 
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        if !stderr.is_empty() {
-            eprintln!("[cleanup] Worker stderr: {}", stderr);
-        }
-
         if output.stdout.is_empty() {
-            return Err(format!("Worker produced no output. stderr: {}", stderr));
+            return Err("Worker produced no output".to_string());
         }
 
         let response: serde_json::Value = serde_json::from_slice(&output.stdout)
