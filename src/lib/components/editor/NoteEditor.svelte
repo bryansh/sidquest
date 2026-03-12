@@ -3,8 +3,10 @@
   import StarterKit from '@tiptap/starter-kit';
   import Placeholder from '@tiptap/extension-placeholder';
   import { WikilinkExtension } from './WikilinkExtension';
-  import type { EditorEvents } from '@tiptap/core';
+  import type { EditorEvents, Editor } from '@tiptap/core';
   import { generateHTML } from '@tiptap/core';
+  import { invoke } from '@tauri-apps/api/core';
+  import { appDataDir, join } from '@tauri-apps/api/path';
 
   let { content, onSave }: {
     content: any;
@@ -13,6 +15,45 @@
 
   let saveTimer: ReturnType<typeof setTimeout> | null = null;
   let saveStatus = $state<'idle' | 'saving' | 'saved'>('idle');
+  let editorInstance = $state<Editor | null>(null);
+  let listening = $state(false);
+  let transcribing = $state(false);
+
+  async function getModelPath(): Promise<string> {
+    const dataDir = await appDataDir();
+    return await join(dataDir, 'ggml-base.en.bin');
+  }
+
+  async function toggleDictation() {
+    if (transcribing) return;
+
+    if (listening) {
+      // Stop recording and transcribe
+      listening = false;
+      transcribing = true;
+      try {
+        await invoke('stop_recording');
+        const modelPath = await getModelPath();
+        const text = await invoke<string>('transcribe', { modelPath });
+        if (text && editorInstance) {
+          editorInstance.chain().focus().insertContent(text).run();
+        }
+      } catch (e) {
+        console.error('[Dictation] Error:', e);
+      } finally {
+        transcribing = false;
+      }
+      return;
+    }
+
+    // Start recording
+    try {
+      await invoke('start_recording');
+      listening = true;
+    } catch (e) {
+      console.error('[Dictation] Failed to start recording:', e);
+    }
+  }
 
   const extensions = [
     ...defaultExtensions,
@@ -24,13 +65,10 @@
   const htmlExtensions = [StarterKit, WikilinkExtension];
 
   function getInitialBody(): string {
-    console.log('[NoteEditor] initializing with content:', content);
     if (!content) return '';
     if (typeof content === 'string') return content;
     try {
-      const html = generateHTML(content, htmlExtensions);
-      console.log('[NoteEditor] generated HTML length:', html.length);
-      return html;
+      return generateHTML(content, htmlExtensions);
     } catch (e) {
       console.error('[NoteEditor] generateHTML failed:', e);
       return '';
@@ -55,18 +93,34 @@
 </script>
 
 <div class="flex flex-col h-full">
-  <div class="flex justify-end px-2 py-1 text-xs text-[var(--color-text-muted)]">
+  <div class="flex items-center justify-end gap-2 px-2 py-1 text-xs text-[var(--color-text-muted)]">
     {#if saveStatus === 'saving'}
-      Saving...
+      <span>Saving...</span>
     {:else if saveStatus === 'saved'}
-      Saved
+      <span>Saved</span>
     {/if}
+    <button
+      onclick={toggleDictation}
+      disabled={transcribing}
+      title={listening ? 'Stop & transcribe' : transcribing ? 'Transcribing...' : 'Start dictation'}
+      class="px-2 py-1 rounded transition-colors cursor-pointer disabled:cursor-wait {listening ? 'bg-red-500/20 text-red-400 animate-pulse' : transcribing ? 'text-[var(--color-accent)]' : 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)]'}"
+      type="button"
+    >
+      {#if listening}
+        ⏹ Recording...
+      {:else if transcribing}
+        Transcribing...
+      {:else}
+        🎙
+      {/if}
+    </button>
   </div>
   <div class="flex-1 overflow-y-auto tipex-wrapper">
     <Tipex
       body={getInitialBody()}
       {extensions}
       onupdate={handleUpdate}
+      bind:tipex={editorInstance}
       class="h-full"
       !focal
       !floating

@@ -1,3 +1,5 @@
+mod dictation;
+
 use tauri::Manager;
 use tauri::menu::{MenuBuilder, MenuItemBuilder};
 use tauri::tray::TrayIconBuilder;
@@ -5,6 +7,13 @@ use tauri::tray::TrayIconBuilder;
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .manage(dictation::RecordingState::new())
+        .invoke_handler(tauri::generate_handler![
+            dictation::start_recording,
+            dictation::stop_recording,
+            dictation::get_recording_status,
+            dictation::transcribe,
+        ])
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(

@@ -5,7 +5,6 @@
 
   async function toggleAlwaysOnTop() {
     const next = !uiState.alwaysOnTop;
-    console.log('[TitleBar] toggleAlwaysOnTop:', next);
     try {
       await getCurrentWindow().setAlwaysOnTop(next);
       uiState.alwaysOnTop = next;

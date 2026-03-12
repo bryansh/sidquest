@@ -16,9 +16,7 @@ export async function createNote(userId: string, gameId: string, entityId: strin
 }
 
 export async function updateNote(id: string, data: { title?: string; content?: any }) {
-  console.log('[updateNote] id:', id, 'data keys:', Object.keys(data));
   const [note] = await db.update(notes).set({ ...data, updatedAt: new Date() }).where(eq(notes.id, id)).returning();
-  console.log('[updateNote] returned:', note?.id, 'content?', !!note?.content);
   return note;
 }
 
