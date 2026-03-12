@@ -1,3 +1,4 @@
+mod cleanup;
 mod dictation;
 
 use tauri::Manager;
@@ -13,6 +14,9 @@ pub fn run() {
             dictation::stop_recording,
             dictation::get_recording_status,
             dictation::transcribe,
+            cleanup::check_cleanup_model,
+            cleanup::download_cleanup_model,
+            cleanup::cleanup_note,
         ])
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_store::Builder::default().build())
@@ -29,7 +33,7 @@ pub fn run() {
         )
         .setup(|app| {
             // Build tray menu
-            let show = MenuItemBuilder::with_id("show", "Show Lorekeeper")
+            let show = MenuItemBuilder::with_id("show", "Show Sidquest")
                 .build(app)?;
             let quit = MenuItemBuilder::with_id("quit", "Quit")
                 .build(app)?;
@@ -44,7 +48,7 @@ pub fn run() {
 
             TrayIconBuilder::new()
                 .icon(icon)
-                .tooltip("Lorekeeper")
+                .tooltip("Sidquest")
                 .menu(&menu)
                 .on_menu_event(|app, event| {
                     match event.id().as_ref() {

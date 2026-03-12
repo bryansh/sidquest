@@ -1,12 +1,12 @@
 [package]
-name = "lorekeeper"
+name = "sidquest"
 version = "0.1.0"
 description = "Game companion note-taking app"
 authors = ["you"]
 edition = "2021"
 
 [lib]
-name = "lorekeeper_lib"
+name = "sidquest_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
@@ -22,3 +22,6 @@ serde_json = "1"
 cpal = "0.15"
 hound = "3.5"
 whisper-rs = "0.14"
+reqwest = { version = "0.12", features = ["stream"] }
+tokio = { version = "1", features = ["fs", "io-util"] }
+futures-util = "0.3"

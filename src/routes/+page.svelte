@@ -18,8 +18,8 @@
   let showNewEntity = $state(false);
   let newEntityTypeId = $state('');
 
-  onMount(async () => {
-    await checkSession();
+  onMount(() => {
+    checkSession();
 
     const handleKeydown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {

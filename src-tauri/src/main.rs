@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    lorekeeper_lib::run()
+    sidquest_lib::run()
 }

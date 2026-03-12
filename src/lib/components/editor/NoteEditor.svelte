@@ -55,7 +55,7 @@
     }
   }
 
-  const extensions = [
+  const extensions: any[] = [
     ...defaultExtensions,
     Placeholder.configure({ placeholder: 'Start writing...' }),
     WikilinkExtension,
@@ -119,9 +119,9 @@
     <Tipex
       body={getInitialBody()}
       {extensions}
-      onupdate={handleUpdate}
-      oncreate={({ editor }) => editor.commands.focus('end')}
-      bind:tipex={editorInstance}
+      onupdate={handleUpdate as any}
+      oncreate={({ editor }: any) => editor.commands.focus('end')}
+      bind:tipex={editorInstance as any}
       class="h-full"
       !focal
       !floating

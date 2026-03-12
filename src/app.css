@@ -19,6 +19,10 @@ html, body {
   color: var(--color-text);
 }
 
+button, [role="button"] {
+  cursor: pointer;
+}
+
 /* Custom scrollbar for dark theme */
 ::-webkit-scrollbar {
   width: 6px;

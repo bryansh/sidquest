@@ -541,6 +541,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "cleanup-worker"
+version = "0.1.0"
+dependencies = [
+ "encoding_rs",
+ "llama-cpp-2",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "cmake"
 version = "0.1.57"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2737,9 +2747,9 @@ dependencies = [
 
 [[package]]
 name = "once_cell"
-version = "1.21.3"
+version = "1.21.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "42f5e15c9953c5e4ccceeb2e7382a716482c34515315f7b03532b8b4e8393d2d"
+checksum = "9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50"
 
 [[package]]
 name = "open"
@@ -3939,10 +3949,8 @@ name = "sidquest"
 version = "0.1.0"
 dependencies = [
  "cpal",
- "encoding_rs",
  "futures-util",
  "hound",
- "llama-cpp-2",
  "reqwest 0.12.28",
  "serde",
  "serde_json",

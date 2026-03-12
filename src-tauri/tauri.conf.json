@@ -1,19 +1,19 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Lorekeeper",
+  "productName": "Sidquest",
   "version": "0.1.0",
-  "identifier": "com.lorekeeper.app",
+  "identifier": "com.sidquest.app",
   "build": {
-    "beforeDevCommand": "npm run dev",
+    "beforeDevCommand": "cargo build -p cleanup-worker && npm run dev",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "npm run build",
+    "beforeBuildCommand": "cargo build --release -p cleanup-worker && npm run build",
     "frontendDist": "../build"
   },
   "app": {
     "windows": [
       {
         "label": "main",
-        "title": "Lorekeeper",
+        "title": "Sidquest",
         "width": 1100,
         "height": 700,
         "decorations": false,
