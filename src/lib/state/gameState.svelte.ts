@@ -1,6 +1,6 @@
 import * as gameQueries from '$lib/db/queries/games';
 import * as entityQueries from '$lib/db/queries/entities';
-import { restoreLastNote } from '$lib/state/noteState.svelte';
+import { restoreLastNote, loadAllGameNotes } from '$lib/state/noteState.svelte';
 
 export interface Game {
   id: string;
@@ -63,6 +63,7 @@ async function loadGameData(gameId: string) {
   const [types, ents] = await Promise.all([
     entityQueries.getEntityTypes(gameId),
     entityQueries.getEntities(gameId),
+    loadAllGameNotes(gameId),
   ]);
   gameState.entityTypes = types.map(r => ({
     id: r.id,

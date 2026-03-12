@@ -5,7 +5,8 @@ import { noteState, selectEntity } from '$lib/state/noteState.svelte';
 
 export interface WikilinkItem {
   id: string;
-  noteId: string;
+  noteId: string | null;
+  entityId: string | null;
   label: string;
   entityName: string;
   typeName: string;
@@ -21,6 +22,7 @@ export const WikilinkExtension = Mention.extend({
     return {
       id: { default: null },
       noteId: { default: null },
+      entityId: { default: null },
       label: { default: null },
     };
   },
@@ -30,13 +32,14 @@ export const WikilinkExtension = Mention.extend({
   },
 
   renderHTML({ node, HTMLAttributes }) {
-    const isResolved = !!node.attrs.noteId;
+    const isResolved = !!(node.attrs.noteId || node.attrs.entityId);
     return [
       'span',
       {
         ...HTMLAttributes,
         'data-type': this.name,
         'data-note-id': node.attrs.noteId || '',
+        'data-entity-id': node.attrs.entityId || '',
         style: isResolved ? resolvedStyle : ghostStyle,
       },
       `[[${node.attrs.label || ''}]]`,
@@ -51,14 +54,19 @@ export const WikilinkExtension = Mention.extend({
         props: {
           handleClick(view, pos) {
             const node = view.state.doc.nodeAt(pos);
-            if (node?.type.name === 'wikilink' && node.attrs.noteId) {
-              const noteId = node.attrs.noteId;
-              const note = noteState.notes.find(n => n.id === noteId);
+            if (node?.type.name !== 'wikilink') return false;
+            const { noteId, entityId } = node.attrs;
+            if (noteId) {
+              const note = noteState.allGameNotes.find(n => n.id === noteId);
               if (note) {
                 selectEntity(note.entityId).then(() => {
                   noteState.activeNoteId = noteId;
                 });
               }
+              return true;
+            }
+            if (entityId) {
+              selectEntity(entityId);
               return true;
             }
             return false;

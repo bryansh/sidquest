@@ -20,23 +20,56 @@ export function createWikilinkSuggestion(): Omit<SuggestionOptions<WikilinkItem>
 
     items({ query }): WikilinkItem[] {
       const q = query.toLowerCase();
-      return noteState.notes
-        .filter(n => n.gameId === gameState.activeGameId)
-        .filter(n => n.title.toLowerCase().includes(q))
-        .slice(0, 10)
+      const qTerms = q.split(/\s+/).filter(Boolean);
+      const matchesQuery = (text: string) =>
+        qTerms.length === 0 || qTerms.every(t => text.includes(t));
+
+      // Entity matches
+      const entityResults: WikilinkItem[] = gameState.entities
+        .filter(e => matchesQuery(e.name.toLowerCase()))
+        .map(e => {
+          const entityType = gameState.entityTypes.find(et => et.id === e.entityTypeId);
+          return {
+            id: e.id,
+            noteId: null,
+            entityId: e.id,
+            label: e.name,
+            entityName: e.name,
+            typeName: entityType?.name ?? '',
+          };
+        });
+
+      // Note matches — qualify with entity name for disambiguation
+      const noteResults: WikilinkItem[] = noteState.allGameNotes
         .map(n => {
           const entity = gameState.entities.find(e => e.id === n.entityId);
           const entityType = entity
             ? gameState.entityTypes.find(et => et.id === entity.entityTypeId)
             : null;
+          const entityName = entity?.name ?? '';
+          // If note title matches entity name, the entity result already covers it
+          const isDefaultNote = entityName.toLowerCase() === n.title.toLowerCase();
+          // Qualified label: "Entity / Note" for non-default notes
+          const label = isDefaultNote ? n.title : `${entityName} / ${n.title}`;
+          // Search against combined terms so "gandalf background" matches
+          const searchText = `${entityName} ${n.title}`.toLowerCase();
           return {
-            id: n.id,
-            noteId: n.id,
-            label: n.title,
-            entityName: entity?.name ?? '',
-            typeName: entityType?.name ?? '',
+            item: {
+              id: n.id,
+              noteId: n.id,
+              entityId: entity?.id ?? null,
+              label,
+              entityName,
+              typeName: entityType?.name ?? '',
+            } as WikilinkItem,
+            isDefaultNote,
+            searchText,
           };
-        });
+        })
+        .filter(r => !r.isDefaultNote && matchesQuery(r.searchText))
+        .map(r => r.item);
+
+      return [...entityResults, ...noteResults].slice(0, 10);
     },
 
     render() {
@@ -51,7 +84,7 @@ export function createWikilinkSuggestion(): Omit<SuggestionOptions<WikilinkItem>
         if (items.length === 0) {
           const empty = document.createElement('div');
           empty.setAttribute('style', styles.empty);
-          empty.textContent = 'No notes found';
+          empty.textContent = 'No matches found';
           container.appendChild(empty);
           return;
         }
@@ -65,7 +98,7 @@ export function createWikilinkSuggestion(): Omit<SuggestionOptions<WikilinkItem>
 
           const metaSpan = document.createElement('span');
           metaSpan.setAttribute('style', styles.meta);
-          metaSpan.textContent = item.entityName + (item.typeName ? ' \u00b7 ' + item.typeName : '');
+          metaSpan.textContent = item.typeName || '';
 
           el.appendChild(titleSpan);
           el.appendChild(metaSpan);
@@ -77,7 +110,7 @@ export function createWikilinkSuggestion(): Omit<SuggestionOptions<WikilinkItem>
       function selectItem(index: number) {
         const item = items[index];
         if (item && commandFn) {
-          commandFn({ id: item.noteId, label: item.label, noteId: item.noteId } as any);
+          commandFn({ id: item.noteId || item.entityId, label: item.label, noteId: item.noteId, entityId: item.entityId } as any);
         }
       }
 
@@ -149,8 +182,9 @@ export function createWikilinkSuggestion(): Omit<SuggestionOptions<WikilinkItem>
           {
             type: 'wikilink',
             attrs: {
-              id: props.noteId || props.id,
-              noteId: props.noteId || props.id,
+              id: props.noteId || props.entityId || props.id,
+              noteId: props.noteId || null,
+              entityId: props.entityId || null,
               label: props.label,
             },
           },

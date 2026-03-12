@@ -14,11 +14,24 @@ export const noteState = $state<{
   activeEntityId: string | null;
   activeNoteId: string | null;
   notes: Note[];
+  allGameNotes: Note[];
 }>({
   activeEntityId: null,
   activeNoteId: null,
   notes: [],
+  allGameNotes: [],
 });
+
+export async function loadAllGameNotes(gameId: string) {
+  const rows = await noteQueries.getNotesByGame(gameId);
+  noteState.allGameNotes = rows.map(r => ({
+    id: r.id,
+    entityId: r.entityId,
+    gameId: r.gameId,
+    title: r.title,
+    content: r.content,
+  }));
+}
 
 export async function restoreLastNote(gameId: string) {
   const note = await noteQueries.getLastModifiedNote(gameId);
@@ -52,6 +65,7 @@ export async function createNote(userId: string, gameId: string, entityId: strin
     content: row.content,
   };
   noteState.notes = [...noteState.notes, note];
+  noteState.allGameNotes = [...noteState.allGameNotes, note];
   noteState.activeNoteId = note.id;
   return note;
 }
@@ -62,6 +76,8 @@ export async function renameNote(noteId: string, title: string) {
   await noteQueries.updateNote(noteId, { title: trimmed });
   const note = noteState.notes.find(n => n.id === noteId);
   if (note) note.title = trimmed;
+  const gameNote = noteState.allGameNotes.find(n => n.id === noteId);
+  if (gameNote) gameNote.title = trimmed;
 }
 
 export async function updateNoteContent(noteId: string, content: any, userId?: string, gameId?: string) {
