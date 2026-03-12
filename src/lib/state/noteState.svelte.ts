@@ -20,6 +20,14 @@ export const noteState = $state<{
   notes: [],
 });
 
+export async function restoreLastNote(gameId: string) {
+  const note = await noteQueries.getLastModifiedNote(gameId);
+  if (note) {
+    await selectEntity(note.entityId);
+    noteState.activeNoteId = note.id;
+  }
+}
+
 export async function selectEntity(entityId: string) {
   noteState.activeEntityId = entityId;
   const rows = await noteQueries.getNotes(entityId);

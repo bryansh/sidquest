@@ -1,4 +1,4 @@
-import { eq, and, asc } from 'drizzle-orm';
+import { eq, and, asc, desc } from 'drizzle-orm';
 import { db } from '../client';
 import { notes } from '../schema';
 
@@ -18,6 +18,11 @@ export async function createNote(userId: string, gameId: string, entityId: strin
 export async function updateNote(id: string, data: { title?: string; content?: any }) {
   const [note] = await db.update(notes).set({ ...data, updatedAt: new Date() }).where(eq(notes.id, id)).returning();
   return note;
+}
+
+export async function getLastModifiedNote(gameId: string) {
+  const [note] = await db.select().from(notes).where(eq(notes.gameId, gameId)).orderBy(desc(notes.updatedAt)).limit(1);
+  return note ?? null;
 }
 
 export async function deleteNote(id: string) {

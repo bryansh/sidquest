@@ -1,5 +1,6 @@
 import * as gameQueries from '$lib/db/queries/games';
 import * as entityQueries from '$lib/db/queries/entities';
+import { restoreLastNote } from '$lib/state/noteState.svelte';
 
 export interface Game {
   id: string;
@@ -46,13 +47,16 @@ export async function loadGames(userId: string) {
   }));
   // Auto-select first game if none selected
   if (!gameState.activeGameId && gameState.games.length > 0) {
-    await selectGame(gameState.games[0].id);
+    await selectGame(gameState.games[0].id, true);
   }
 }
 
-export async function selectGame(gameId: string) {
+export async function selectGame(gameId: string, restore = false) {
   gameState.activeGameId = gameId;
   await loadGameData(gameId);
+  if (restore) {
+    await restoreLastNote(gameId);
+  }
 }
 
 async function loadGameData(gameId: string) {

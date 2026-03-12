@@ -120,6 +120,7 @@
       body={getInitialBody()}
       {extensions}
       onupdate={handleUpdate}
+      oncreate={({ editor }) => editor.commands.focus('end')}
       bind:tipex={editorInstance}
       class="h-full"
       !focal
