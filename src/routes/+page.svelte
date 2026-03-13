@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { authState, checkSession } from '$lib/auth/authState.svelte';
-  import { loadGames, createGame, createEntityType, createEntity, deleteEntity, deleteGameById, gameState } from '$lib/state/gameState.svelte';
+  import { loadGames, createGame, createEntityType, createEntity, deleteEntity, deleteGameById, renameEntity, gameState } from '$lib/state/gameState.svelte';
   import { selectEntity } from '$lib/state/noteState.svelte';
   import SignIn from '$lib/components/auth/SignIn.svelte';
   import TitleBar from '$lib/components/layout/TitleBar.svelte';
@@ -59,6 +59,7 @@
         onSelectEntity={(id) => selectEntity(id)}
         onDeleteEntity={(id) => confirmDeleteEntityId = id}
         onDeleteGame={(id) => confirmDeleteGameId = id}
+        onRenameEntity={(id, name) => renameEntity(id, name)}
       />
       <MainPanel />
     </div>

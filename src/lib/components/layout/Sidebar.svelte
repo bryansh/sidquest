@@ -4,13 +4,14 @@
   import GameSelector from '../sidebar/GameSelector.svelte';
   import EntityTypeList from '../sidebar/EntityTypeList.svelte';
 
-  let { onNewGame, onNewEntityType, onNewEntity, onSelectEntity, onDeleteEntity, onDeleteGame }: {
+  let { onNewGame, onNewEntityType, onNewEntity, onSelectEntity, onDeleteEntity, onDeleteGame, onRenameEntity }: {
     onNewGame: () => void;
     onNewEntityType: () => void;
     onNewEntity: (entityTypeId: string) => void;
     onSelectEntity: (id: string) => void;
     onDeleteEntity: (entityId: string) => void;
     onDeleteGame: (gameId: string) => void;
+    onRenameEntity: (entityId: string, name: string) => void;
   } = $props();
 </script>
 
@@ -29,6 +30,7 @@
           onSelectEntity={onSelectEntity}
           onNewEntity={onNewEntity}
           onDeleteEntity={onDeleteEntity}
+          onRenameEntity={onRenameEntity}
         />
       {:else}
         <p class="p-3 text-sm text-[var(--color-text-muted)]">No entity types yet. Create one to start organizing.</p>

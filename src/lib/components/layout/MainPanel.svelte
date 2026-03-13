@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { gameState } from '$lib/state/gameState.svelte';
+  import { gameState, renameEntity } from '$lib/state/gameState.svelte';
   import { noteState, createNote, updateNoteContent, renameNote, deleteNote } from '$lib/state/noteState.svelte';
   import { authState } from '$lib/auth/authState.svelte';
   import NoteEditor from '../editor/NoteEditor.svelte';
@@ -7,6 +7,30 @@
   import ConfirmDeleteModal from '../modals/ConfirmDeleteModal.svelte';
 
   let confirmDeleteNoteId = $state<string | null>(null);
+  let editingEntityName = $state(false);
+  let entityNameValue = $state('');
+
+  function startEntityRename() {
+    if (!activeEntity) return;
+    entityNameValue = activeEntity.name;
+    editingEntityName = true;
+  }
+
+  async function commitEntityRename() {
+    if (activeEntity && entityNameValue.trim() && entityNameValue.trim() !== activeEntity.name) {
+      await renameEntity(activeEntity.id, entityNameValue.trim());
+    }
+    editingEntityName = false;
+  }
+
+  function handleEntityNameKeydown(e: KeyboardEvent) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      commitEntityRename();
+    } else if (e.key === 'Escape') {
+      editingEntityName = false;
+    }
+  }
 
   const activeEntity = $derived(
     gameState.entities.find(e => e.id === noteState.activeEntityId) ?? null
@@ -58,7 +82,18 @@
 <main class="flex-1 flex flex-col h-full overflow-hidden">
   {#if activeEntity}
     <header class="flex items-center justify-between px-4 py-3 border-b border-[var(--color-border)]">
-      <h2 class="text-lg font-semibold">{activeEntity.name}</h2>
+      {#if editingEntityName}
+        <input
+          type="text"
+          bind:value={entityNameValue}
+          onblur={commitEntityRename}
+          onkeydown={handleEntityNameKeydown}
+          use:selectAll
+          class="text-lg font-semibold bg-[var(--color-bg)] border border-[var(--color-border)] rounded px-2 py-0.5 outline-none text-[var(--color-text)]"
+        />
+      {:else}
+        <h2 class="text-lg font-semibold cursor-pointer" ondblclick={startEntityRename}>{activeEntity.name}</h2>
+      {/if}
       <button
         onclick={handleNewNote}
         class="text-sm px-3 py-1 rounded bg-[var(--color-accent)] hover:bg-[var(--color-accent-hover)] text-white transition-colors"

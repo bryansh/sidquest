@@ -104,6 +104,14 @@ export async function createEntityType(userId: string, name: string, opts?: { co
   return row;
 }
 
+export async function renameEntity(entityId: string, name: string) {
+  const trimmed = name.trim();
+  if (!trimmed) return;
+  await entityQueries.updateEntity(entityId, { name: trimmed });
+  const entity = gameState.entities.find(e => e.id === entityId);
+  if (entity) entity.name = trimmed;
+}
+
 export async function deleteEntity(entityId: string) {
   await entityQueries.deleteEntity(entityId);
   gameState.entities = gameState.entities.filter(e => e.id !== entityId);
