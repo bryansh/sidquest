@@ -2,6 +2,7 @@ import { Mention } from '@tiptap/extension-mention';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
 import { createWikilinkSuggestion } from './wikilinkSuggestion';
 import { noteState, selectEntity } from '$lib/state/noteState.svelte';
+import { gameState } from '$lib/state/gameState.svelte';
 
 export interface WikilinkItem {
   id: string;
@@ -14,6 +15,18 @@ export interface WikilinkItem {
 
 const resolvedStyle = 'background:color-mix(in srgb,var(--color-accent) 20%,transparent);color:var(--color-accent);padding:1px 4px;border-radius:3px;font-size:0.9em;cursor:pointer';
 const ghostStyle = 'background:color-mix(in srgb,var(--color-text-muted) 15%,transparent);color:var(--color-text-muted);padding:1px 4px;border-radius:3px;font-size:0.9em;cursor:pointer;font-style:italic';
+
+function resolveLabel(attrs: Record<string, any>): string {
+  if (attrs.noteId) {
+    const note = noteState.allGameNotes.find(n => n.id === attrs.noteId);
+    if (note) return note.title;
+  }
+  if (attrs.entityId) {
+    const entity = gameState.entities.find(e => e.id === attrs.entityId);
+    if (entity) return entity.name;
+  }
+  return attrs.label || '';
+}
 
 export const WikilinkExtension = Mention.extend({
   name: 'wikilink',
@@ -32,11 +45,12 @@ export const WikilinkExtension = Mention.extend({
   },
 
   renderText({ node }) {
-    return `[[${node.attrs.label || ''}]]`;
+    return `[[${resolveLabel(node.attrs)}]]`;
   },
 
   renderHTML({ node, HTMLAttributes }) {
     const isResolved = !!(node.attrs.noteId || node.attrs.entityId);
+    const label = resolveLabel(node.attrs);
     return [
       'span',
       {
@@ -46,7 +60,7 @@ export const WikilinkExtension = Mention.extend({
         'data-entity-id': node.attrs.entityId || '',
         style: isResolved ? resolvedStyle : ghostStyle,
       },
-      `[[${node.attrs.label || ''}]]`,
+      `[[${label}]]`,
     ];
   },
   addProseMirrorPlugins() {

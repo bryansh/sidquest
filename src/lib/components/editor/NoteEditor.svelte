@@ -11,6 +11,8 @@
   import { serialize, deserialize, restoreWikilinks } from './cleanupRoundtrip';
   import { toMarkdown } from '$lib/export/toMarkdown';
   import { save } from '@tauri-apps/plugin-dialog';
+  import { noteState } from '$lib/state/noteState.svelte';
+  import { gameState } from '$lib/state/gameState.svelte';
 
   let { content, onSave, onBeforeCleanup, gameId }: {
     content: any;
@@ -202,6 +204,38 @@
       return '';
     }
   }
+
+  // Build a snapshot of note/entity names so $effect can detect changes
+  const nameSnapshot = $derived(
+    noteState.allGameNotes.map(n => n.title).join('\0') +
+    gameState.entities.map(e => e.name).join('\0')
+  );
+
+  // When names change, re-render wikilink nodes in the editor
+  $effect(() => {
+    nameSnapshot; // track
+    if (!editorInstance) return;
+    const { state, view } = editorInstance;
+    const { tr } = state;
+    let touched = false;
+    state.doc.descendants((node, pos) => {
+      if (node.type.name !== 'wikilink') return;
+      const { noteId, entityId, label } = node.attrs;
+      let currentName = label;
+      if (noteId) {
+        const note = noteState.allGameNotes.find(n => n.id === noteId);
+        if (note) currentName = note.title;
+      } else if (entityId) {
+        const entity = gameState.entities.find(e => e.id === entityId);
+        if (entity) currentName = entity.name;
+      }
+      if (currentName !== label) {
+        tr.setNodeMarkup(pos, undefined, { ...node.attrs, label: currentName });
+        touched = true;
+      }
+    });
+    if (touched) view.dispatch(tr);
+  });
 
   function handleUpdate({ editor }: EditorEvents['update']) {
     if (saveTimer) clearTimeout(saveTimer);
