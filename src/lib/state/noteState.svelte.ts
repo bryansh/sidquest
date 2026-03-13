@@ -55,8 +55,8 @@ export async function selectEntity(entityId: string) {
   noteState.activeNoteId = noteState.notes.length > 0 ? noteState.notes[0].id : null;
 }
 
-export async function createNote(userId: string, gameId: string, entityId: string, title: string) {
-  const row = await noteQueries.createNote(userId, gameId, entityId, title);
+export async function createNote(userId: string, gameId: string, entityId: string, title: string, opts?: { content?: any; activate?: boolean }) {
+  const row = await noteQueries.createNote(userId, gameId, entityId, title, opts?.content);
   const note: Note = {
     id: row.id,
     entityId: row.entityId,
@@ -66,7 +66,9 @@ export async function createNote(userId: string, gameId: string, entityId: strin
   };
   noteState.notes = [...noteState.notes, note];
   noteState.allGameNotes = [...noteState.allGameNotes, note];
-  noteState.activeNoteId = note.id;
+  if (opts?.activate !== false) {
+    noteState.activeNoteId = note.id;
+  }
   return note;
 }
 
@@ -78,6 +80,15 @@ export async function renameNote(noteId: string, title: string) {
   if (note) note.title = trimmed;
   const gameNote = noteState.allGameNotes.find(n => n.id === noteId);
   if (gameNote) gameNote.title = trimmed;
+}
+
+export async function deleteNote(noteId: string) {
+  await noteQueries.deleteNote(noteId);
+  noteState.notes = noteState.notes.filter(n => n.id !== noteId);
+  noteState.allGameNotes = noteState.allGameNotes.filter(n => n.id !== noteId);
+  if (noteState.activeNoteId === noteId) {
+    noteState.activeNoteId = noteState.notes.length > 0 ? noteState.notes[0].id : null;
+  }
 }
 
 export async function updateNoteContent(noteId: string, content: any, userId?: string, gameId?: string) {

@@ -9,9 +9,10 @@
   import { appDataDir, join } from '@tauri-apps/api/path';
   import { serialize, deserialize, restoreWikilinks } from './cleanupRoundtrip';
 
-  let { content, onSave }: {
+  let { content, onSave, onBeforeCleanup }: {
     content: any;
     onSave: (content: any) => Promise<void> | void;
+    onBeforeCleanup?: (content: any) => Promise<void> | void;
   } = $props();
 
   let saveTimer: ReturnType<typeof setTimeout> | null = null;
@@ -67,6 +68,11 @@
       console.log('[Cleanup] Wikilink map:', Object.fromEntries(wikilinkMap));
 
       if (!text.trim()) return;
+
+      // Archive the original note before cleanup
+      if (onBeforeCleanup) {
+        await onBeforeCleanup(doc);
+      }
 
       // Ensure model is downloaded
       const hasModel = await invoke<boolean>('check_cleanup_model');

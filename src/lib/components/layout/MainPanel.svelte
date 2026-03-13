@@ -1,6 +1,6 @@
 <script lang="ts">
   import { gameState } from '$lib/state/gameState.svelte';
-  import { noteState, createNote, updateNoteContent, renameNote } from '$lib/state/noteState.svelte';
+  import { noteState, createNote, updateNoteContent, renameNote, deleteNote } from '$lib/state/noteState.svelte';
   import { authState } from '$lib/auth/authState.svelte';
   import NoteEditor from '../editor/NoteEditor.svelte';
   import BacklinksPanel from '../editor/BacklinksPanel.svelte';
@@ -77,13 +77,24 @@
               class="px-3 py-1.5 text-sm rounded-t bg-[var(--color-surface)] text-[var(--color-text)] border border-b-0 border-[var(--color-border)] outline-none w-32"
             />
           {:else}
-            <button
-              onclick={() => noteState.activeNoteId = note.id}
-              ondblclick={() => startRename(note)}
-              class="px-3 py-1.5 text-sm rounded-t transition-colors {note.id === noteState.activeNoteId ? 'bg-[var(--color-surface)] text-[var(--color-text)] border border-b-0 border-[var(--color-border)]' : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'}"
-            >
-              {note.title}
-            </button>
+            <div class="group flex items-center gap-0.5 rounded-t transition-colors {note.id === noteState.activeNoteId ? 'bg-[var(--color-surface)] border border-b-0 border-[var(--color-border)]' : ''}">
+              <button
+                onclick={() => noteState.activeNoteId = note.id}
+                ondblclick={() => startRename(note)}
+                class="px-3 py-1.5 text-sm transition-colors {note.id === noteState.activeNoteId ? 'text-[var(--color-text)]' : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'}"
+              >
+                {note.title}
+              </button>
+              {#if entityNotes.length > 1}
+                <button
+                  onclick={(e) => { e.stopPropagation(); deleteNote(note.id); }}
+                  title="Delete note"
+                  class="opacity-0 group-hover:opacity-100 px-1 py-0.5 text-xs text-[var(--color-text-muted)] hover:text-red-400 transition-opacity"
+                >
+                  &times;
+                </button>
+              {/if}
+            </div>
           {/if}
         {/each}
       </div>
@@ -95,6 +106,11 @@
           <NoteEditor
             content={activeNote.content}
             onSave={(content) => updateNoteContent(activeNote.id, content, authState.user?.id, activeNote.gameId)}
+            onBeforeCleanup={async (content) => {
+              if (!authState.user || !activeNote) return;
+              const title = `Pre-cleanup: ${activeNote.title}`;
+              await createNote(authState.user.id, activeNote.gameId, activeNote.entityId, title, { content, activate: false });
+            }}
           />
           <BacklinksPanel noteId={activeNote.id} />
         {/key}
