@@ -108,6 +108,7 @@
         {#key activeNote.id}
           <NoteEditor
             content={activeNote.content}
+            gameId={activeNote.gameId}
             onSave={(content) => updateNoteContent(activeNote.id, content, authState.user?.id, activeNote.gameId)}
             onBeforeCleanup={async (content) => {
               if (!authState.user || !activeNote) return;

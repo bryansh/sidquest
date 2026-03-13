@@ -5,15 +5,18 @@
   import { WikilinkExtension } from './WikilinkExtension';
   import type { EditorEvents, Editor } from '@tiptap/core';
   import { generateHTML } from '@tiptap/core';
-  import { invoke } from '@tauri-apps/api/core';
+  import { invoke, convertFileSrc } from '@tauri-apps/api/core';
   import { listen } from '@tauri-apps/api/event';
   import { appDataDir, join } from '@tauri-apps/api/path';
   import { serialize, deserialize, restoreWikilinks } from './cleanupRoundtrip';
+  import { toMarkdown } from '$lib/export/toMarkdown';
+  import { save } from '@tauri-apps/plugin-dialog';
 
-  let { content, onSave, onBeforeCleanup }: {
+  let { content, onSave, onBeforeCleanup, gameId }: {
     content: any;
     onSave: (content: any) => Promise<void> | void;
     onBeforeCleanup?: (content: any) => Promise<void> | void;
+    gameId: string;
   } = $props();
 
   let saveTimer: ReturnType<typeof setTimeout> | null = null;
@@ -23,6 +26,14 @@
   let transcribing = $state(false);
   let cleaningUp = $state(false);
   let downloadProgress = $state<number | null>(null);
+  let exportStatus = $state<string | null>(null);
+  let exportStatusTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function flashExportStatus(message: string) {
+    if (exportStatusTimer) clearTimeout(exportStatusTimer);
+    exportStatus = message;
+    exportStatusTimer = setTimeout(() => { exportStatus = null; }, 3000);
+  }
 
   async function getModelPath(): Promise<string> {
     const dataDir = await appDataDir();
@@ -113,6 +124,65 @@
     }
   }
 
+  async function insertImageFile(file: File) {
+    if (!editorInstance || !gameId) return;
+    const buffer = await file.arrayBuffer();
+    const data = Array.from(new Uint8Array(buffer));
+    const ext = file.name.split('.').pop() || (file.type.split('/')[1] ?? 'png');
+    const path = await invoke<string>('save_image', { gameId, data, extension: ext });
+    const src = convertFileSrc(path);
+    (editorInstance.chain().focus() as any).setImage({ src }).run();
+  }
+
+  function handleImagePaste(event: ClipboardEvent) {
+    const files = event.clipboardData?.files;
+    if (!files?.length) return;
+    for (const file of files) {
+      if (file.type.startsWith('image/')) {
+        event.preventDefault();
+        insertImageFile(file);
+        return;
+      }
+    }
+  }
+
+  function handleImageDrop(event: DragEvent) {
+    const files = event.dataTransfer?.files;
+    if (!files?.length) return;
+    for (const file of files) {
+      if (file.type.startsWith('image/')) {
+        event.preventDefault();
+        insertImageFile(file);
+        return;
+      }
+    }
+  }
+
+  function handleDragOver(event: DragEvent) {
+    if (event.dataTransfer?.types.includes('Files')) {
+      event.preventDefault();
+    }
+  }
+
+  async function exportMarkdown() {
+    if (!editorInstance) return;
+    try {
+      const path = await save({
+        defaultPath: 'note.md',
+        filters: [{ name: 'Markdown', extensions: ['md'] }],
+      });
+      if (!path) return;
+      const doc = editorInstance.getJSON();
+      const md = toMarkdown(doc);
+      await invoke('save_export_file', { path, contents: md });
+      const filename = path.split('/').pop() ?? path;
+      flashExportStatus(`Exported to ${filename}`);
+    } catch (e) {
+      console.error('[Export] Error:', e);
+      flashExportStatus('Export failed');
+    }
+  }
+
   const extensions: any[] = [
     ...defaultExtensions,
     Placeholder.configure({ placeholder: 'Start writing...' }),
@@ -153,6 +223,14 @@
 <div class="flex flex-col h-full">
   <div class="flex items-center justify-end gap-2 px-2 py-1 text-xs text-[var(--color-text-muted)]">
     <button
+      onclick={() => exportMarkdown()}
+      title="Export as Markdown"
+      class="px-2 py-1 rounded transition-colors cursor-pointer text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)]"
+      type="button"
+    >
+      &#128190;
+    </button>
+    <button
       onclick={cleanupNote}
       disabled={cleaningUp}
       title="AI cleanup: organize and tidy this note"
@@ -177,7 +255,8 @@
       {/if}
     </button>
   </div>
-  <div class="flex-1 overflow-y-auto tipex-wrapper">
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div class="flex-1 overflow-y-auto tipex-wrapper" onpaste={handleImagePaste} ondrop={handleImageDrop} ondragover={handleDragOver}>
     <Tipex
       body={getInitialBody()}
       {extensions}
@@ -190,8 +269,10 @@
       controlComponent={null}
     />
   </div>
-  <div class="flex items-center px-3 py-1 text-xs text-[var(--color-text-muted)] border-t border-[var(--color-border)]">
-    {#if downloadProgress !== null}
+  <div class="flex items-center px-3 py-1 text-xs text-[var(--color-text-muted)] border-t border-[var(--color-border)] h-6 shrink-0">
+    {#if exportStatus}
+      <span>{exportStatus}</span>
+    {:else if downloadProgress !== null}
       <span class="text-[var(--color-accent)] animate-pulse">Downloading cleanup model: {downloadProgress}%</span>
     {:else if cleaningUp}
       <span class="text-[var(--color-accent)] animate-pulse">Cleaning up...</span>
@@ -199,6 +280,8 @@
       <span>Saving...</span>
     {:else if saveStatus === 'saved'}
       <span>Saved</span>
+    {:else}
+      <span>&nbsp;</span>
     {/if}
   </div>
 </div>
@@ -245,6 +328,11 @@
     border: none;
     border-top: 1px solid var(--color-border);
     margin: 1rem 0;
+  }
+  .tipex-wrapper :global(.tiptap img) {
+    max-width: 100%;
+    border-radius: 6px;
+    margin: 0.5em 0;
   }
   .tipex-wrapper :global(.tiptap p.is-editor-empty:first-child::before) {
     color: var(--color-text-muted);

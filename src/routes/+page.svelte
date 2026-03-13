@@ -49,7 +49,7 @@
 {:else if !authState.user}
   <SignIn />
 {:else}
-  <div class="flex flex-col h-screen w-screen bg-[var(--color-bg)] rounded-lg overflow-hidden border border-[var(--color-border)]">
+  <div class="flex flex-col h-screen w-screen bg-[var(--color-bg)] overflow-hidden">
     <TitleBar />
     <div class="flex flex-1 overflow-hidden">
       <Sidebar

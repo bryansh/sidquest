@@ -1,5 +1,7 @@
 mod cleanup;
 mod dictation;
+mod export;
+mod images;
 
 use tauri::Manager;
 use tauri::menu::{MenuBuilder, MenuItemBuilder};
@@ -17,8 +19,12 @@ pub fn run() {
             cleanup::check_cleanup_model,
             cleanup::download_cleanup_model,
             cleanup::cleanup_note,
+            images::save_image,
+            export::save_export_file,
+            export::save_export_file_binary,
         ])
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { Popover } from 'bits-ui';
   import { gameState, selectGame } from '$lib/state/gameState.svelte';
+  import { exportGameAsZip } from '$lib/export/exportGame';
 
   let { onNewGame, onDeleteGame }: { onNewGame: () => void; onDeleteGame: (gameId: string) => void } = $props();
 
@@ -29,6 +30,13 @@
           class="flex-1 text-left px-3 py-2 text-sm {game.id === gameState.activeGameId ? 'text-[var(--color-accent)]' : ''}"
         >
           {game.name}
+        </button>
+        <button
+          onclick={(e) => { e.stopPropagation(); open = false; exportGameAsZip(game.id, game.name); }}
+          title="Export game"
+          class="opacity-0 group-hover:opacity-100 px-2 py-1 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-accent)] transition-opacity"
+        >
+          &#8615;
         </button>
         <button
           onclick={(e) => { e.stopPropagation(); open = false; onDeleteGame(game.id); }}
