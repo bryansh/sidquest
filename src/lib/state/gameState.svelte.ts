@@ -1,6 +1,6 @@
 import * as gameQueries from '$lib/db/queries/games';
 import * as entityQueries from '$lib/db/queries/entities';
-import { restoreLastNote, loadAllGameNotes } from '$lib/state/noteState.svelte';
+import { restoreLastNote, loadAllGameNotes, noteState } from '$lib/state/noteState.svelte';
 
 export interface Game {
   id: string;
@@ -102,6 +102,36 @@ export async function createEntityType(userId: string, name: string, opts?: { co
     sortOrder: row.sortOrder ?? 0,
   }];
   return row;
+}
+
+export async function deleteEntity(entityId: string) {
+  await entityQueries.deleteEntity(entityId);
+  gameState.entities = gameState.entities.filter(e => e.id !== entityId);
+  // Prune notes belonging to deleted entity
+  noteState.allGameNotes = noteState.allGameNotes.filter(n => n.entityId !== entityId);
+  if (noteState.activeEntityId === entityId) {
+    noteState.activeEntityId = null;
+    noteState.activeNoteId = null;
+    noteState.notes = [];
+  }
+}
+
+export async function deleteGameById(gameId: string) {
+  await gameQueries.deleteGame(gameId);
+  gameState.games = gameState.games.filter(g => g.id !== gameId);
+  if (gameState.activeGameId === gameId) {
+    gameState.activeGameId = null;
+    gameState.entityTypes = [];
+    gameState.entities = [];
+    noteState.activeEntityId = null;
+    noteState.activeNoteId = null;
+    noteState.notes = [];
+    noteState.allGameNotes = [];
+    // Auto-select next game if available
+    if (gameState.games.length > 0) {
+      await selectGame(gameState.games[0].id);
+    }
+  }
 }
 
 export async function createEntity(userId: string, entityTypeId: string, name: string, opts?: { summary?: string }) {

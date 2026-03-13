@@ -4,6 +4,9 @@
   import { authState } from '$lib/auth/authState.svelte';
   import NoteEditor from '../editor/NoteEditor.svelte';
   import BacklinksPanel from '../editor/BacklinksPanel.svelte';
+  import ConfirmDeleteModal from '../modals/ConfirmDeleteModal.svelte';
+
+  let confirmDeleteNoteId = $state<string | null>(null);
 
   const activeEntity = $derived(
     gameState.entities.find(e => e.id === noteState.activeEntityId) ?? null
@@ -87,7 +90,7 @@
               </button>
               {#if entityNotes.length > 1}
                 <button
-                  onclick={(e) => { e.stopPropagation(); deleteNote(note.id); }}
+                  onclick={(e) => { e.stopPropagation(); confirmDeleteNoteId = note.id; }}
                   title="Delete note"
                   class="opacity-0 group-hover:opacity-100 px-1 py-0.5 text-xs text-[var(--color-text-muted)] hover:text-red-400 transition-opacity"
                 >
@@ -126,3 +129,13 @@
     </div>
   {/if}
 </main>
+
+{#if confirmDeleteNoteId}
+  {@const noteToDelete = entityNotes.find(n => n.id === confirmDeleteNoteId)}
+  <ConfirmDeleteModal
+    title="Delete Note"
+    message="Are you sure you want to delete &quot;{noteToDelete?.title ?? 'this note'}&quot;? This cannot be undone."
+    onClose={() => confirmDeleteNoteId = null}
+    onConfirm={async () => { await deleteNote(confirmDeleteNoteId!); confirmDeleteNoteId = null; }}
+  />
+{/if}

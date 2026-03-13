@@ -6,6 +6,7 @@
   import type { EditorEvents, Editor } from '@tiptap/core';
   import { generateHTML } from '@tiptap/core';
   import { invoke } from '@tauri-apps/api/core';
+  import { listen } from '@tauri-apps/api/event';
   import { appDataDir, join } from '@tauri-apps/api/path';
   import { serialize, deserialize, restoreWikilinks } from './cleanupRoundtrip';
 
@@ -21,6 +22,7 @@
   let listening = $state(false);
   let transcribing = $state(false);
   let cleaningUp = $state(false);
+  let downloadProgress = $state<number | null>(null);
 
   async function getModelPath(): Promise<string> {
     const dataDir = await appDataDir();
@@ -78,7 +80,17 @@
       const hasModel = await invoke<boolean>('check_cleanup_model');
       if (!hasModel) {
         console.log('[Cleanup] Model not downloaded, triggering download...');
-        await invoke('download_cleanup_model');
+        downloadProgress = 0;
+        const unlisten = await listen<{ downloaded: number; total: number }>('cleanup-model-progress', (event) => {
+          const { downloaded, total } = event.payload;
+          downloadProgress = total > 0 ? Math.round((downloaded / total) * 100) : 0;
+        });
+        try {
+          await invoke('download_cleanup_model');
+        } finally {
+          unlisten();
+          downloadProgress = null;
+        }
       }
 
       const raw = await invoke<string>('cleanup_note', { text });
@@ -140,23 +152,14 @@
 
 <div class="flex flex-col h-full">
   <div class="flex items-center justify-end gap-2 px-2 py-1 text-xs text-[var(--color-text-muted)]">
-    {#if saveStatus === 'saving'}
-      <span>Saving...</span>
-    {:else if saveStatus === 'saved'}
-      <span>Saved</span>
-    {/if}
     <button
       onclick={cleanupNote}
       disabled={cleaningUp}
       title="AI cleanup: organize and tidy this note"
-      class="px-2 py-1 rounded transition-colors cursor-pointer disabled:cursor-wait {cleaningUp ? 'text-[var(--color-accent)] animate-pulse' : 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)]'}"
+      class="px-2 py-1 rounded transition-colors cursor-pointer disabled:cursor-wait {cleaningUp ? 'text-[var(--color-accent)]' : 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)]'}"
       type="button"
     >
-      {#if cleaningUp}
-        Cleaning up...
-      {:else}
-        Cleanup
-      {/if}
+      &#10024;
     </button>
     <button
       onclick={toggleDictation}
@@ -186,6 +189,17 @@
       !floating
       controlComponent={null}
     />
+  </div>
+  <div class="flex items-center px-3 py-1 text-xs text-[var(--color-text-muted)] border-t border-[var(--color-border)]">
+    {#if downloadProgress !== null}
+      <span class="text-[var(--color-accent)] animate-pulse">Downloading cleanup model: {downloadProgress}%</span>
+    {:else if cleaningUp}
+      <span class="text-[var(--color-accent)] animate-pulse">Cleaning up...</span>
+    {:else if saveStatus === 'saving'}
+      <span>Saving...</span>
+    {:else if saveStatus === 'saved'}
+      <span>Saved</span>
+    {/if}
   </div>
 </div>
 

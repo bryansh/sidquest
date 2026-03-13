@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { authState, checkSession } from '$lib/auth/authState.svelte';
-  import { loadGames, createGame, createEntityType, createEntity, gameState } from '$lib/state/gameState.svelte';
+  import { loadGames, createGame, createEntityType, createEntity, deleteEntity, deleteGameById, gameState } from '$lib/state/gameState.svelte';
   import { selectEntity } from '$lib/state/noteState.svelte';
   import SignIn from '$lib/components/auth/SignIn.svelte';
   import TitleBar from '$lib/components/layout/TitleBar.svelte';
@@ -11,12 +11,15 @@
   import NewEntityTypeModal from '$lib/components/modals/NewEntityTypeModal.svelte';
   import NewEntityModal from '$lib/components/modals/NewEntityModal.svelte';
   import SearchModal from '$lib/components/modals/SearchModal.svelte';
+  import ConfirmDeleteModal from '$lib/components/modals/ConfirmDeleteModal.svelte';
 
   let showSearch = $state(false);
   let showNewGame = $state(false);
   let showNewEntityType = $state(false);
   let showNewEntity = $state(false);
   let newEntityTypeId = $state('');
+  let confirmDeleteEntityId = $state<string | null>(null);
+  let confirmDeleteGameId = $state<string | null>(null);
 
   onMount(() => {
     checkSession();
@@ -54,6 +57,8 @@
         onNewEntityType={() => showNewEntityType = true}
         onNewEntity={(typeId) => { newEntityTypeId = typeId; showNewEntity = true; }}
         onSelectEntity={(id) => selectEntity(id)}
+        onDeleteEntity={(id) => confirmDeleteEntityId = id}
+        onDeleteGame={(id) => confirmDeleteGameId = id}
       />
       <MainPanel />
     </div>
@@ -93,5 +98,25 @@
 
   {#if showSearch}
     <SearchModal onClose={() => showSearch = false} />
+  {/if}
+
+  {#if confirmDeleteEntityId}
+    {@const entityToDelete = gameState.entities.find(e => e.id === confirmDeleteEntityId)}
+    <ConfirmDeleteModal
+      title="Delete Entity"
+      message="Are you sure you want to delete &quot;{entityToDelete?.name ?? 'this entity'}&quot; and all its notes? This cannot be undone."
+      onClose={() => confirmDeleteEntityId = null}
+      onConfirm={async () => { await deleteEntity(confirmDeleteEntityId!); confirmDeleteEntityId = null; }}
+    />
+  {/if}
+
+  {#if confirmDeleteGameId}
+    {@const gameToDelete = gameState.games.find(g => g.id === confirmDeleteGameId)}
+    <ConfirmDeleteModal
+      title="Delete Game"
+      message="Are you sure you want to delete &quot;{gameToDelete?.name ?? 'this game'}&quot; and all its entities and notes? This cannot be undone."
+      onClose={() => confirmDeleteGameId = null}
+      onConfirm={async () => { await deleteGameById(confirmDeleteGameId!); confirmDeleteGameId = null; }}
+    />
   {/if}
 {/if}

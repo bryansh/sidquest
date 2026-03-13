@@ -3,12 +3,13 @@
   import type { EntityType, Entity } from '$lib/state/gameState.svelte';
   import EntityItem from './EntityItem.svelte';
 
-  let { entityTypes, entities, activeEntityId, onSelectEntity, onNewEntity }: {
+  let { entityTypes, entities, activeEntityId, onSelectEntity, onNewEntity, onDeleteEntity }: {
     entityTypes: EntityType[];
     entities: Entity[];
     activeEntityId: string | null;
     onSelectEntity: (id: string) => void;
     onNewEntity: (entityTypeId: string) => void;
+    onDeleteEntity: (entityId: string) => void;
   } = $props();
 
   const sortedTypes = $derived(
@@ -34,6 +35,7 @@
             {entity}
             active={entity.id === activeEntityId}
             onSelect={() => onSelectEntity(entity.id)}
+            onDelete={() => onDeleteEntity(entity.id)}
           />
         {/each}
         <button
