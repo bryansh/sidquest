@@ -104,6 +104,44 @@ export async function createEntityType(userId: string, name: string, opts?: { co
   return row;
 }
 
+export async function renameEntityType(entityTypeId: string, name: string, icon?: string) {
+  const trimmed = name.trim();
+  if (!trimmed) return;
+  const update: { name: string; icon?: string } = { name: trimmed };
+  if (icon !== undefined) update.icon = icon || undefined;
+  await entityQueries.updateEntityType(entityTypeId, update);
+  const et = gameState.entityTypes.find(t => t.id === entityTypeId);
+  if (et) {
+    et.name = trimmed;
+    if (icon !== undefined) et.icon = icon || null;
+  }
+}
+
+export async function deleteEntityTypeById(entityTypeId: string) {
+  await entityQueries.deleteEntityType(entityTypeId);
+  const entityIds = gameState.entities.filter(e => e.entityTypeId === entityTypeId).map(e => e.id);
+  gameState.entityTypes = gameState.entityTypes.filter(t => t.id !== entityTypeId);
+  gameState.entities = gameState.entities.filter(e => e.entityTypeId !== entityTypeId);
+  noteState.allGameNotes = noteState.allGameNotes.filter(n => !entityIds.includes(n.entityId));
+  if (noteState.activeEntityId && entityIds.includes(noteState.activeEntityId)) {
+    noteState.activeEntityId = null;
+    noteState.activeNoteId = null;
+    noteState.notes = [];
+  }
+}
+
+export async function reorderEntityTypes(orderedIds: string[]) {
+  const updates: Promise<any>[] = [];
+  for (let i = 0; i < orderedIds.length; i++) {
+    const et = gameState.entityTypes.find(t => t.id === orderedIds[i]);
+    if (et && et.sortOrder !== i) {
+      et.sortOrder = i;
+      updates.push(entityQueries.updateEntityType(et.id, { sortOrder: i }));
+    }
+  }
+  await Promise.all(updates);
+}
+
 export async function renameEntity(entityId: string, name: string) {
   const trimmed = name.trim();
   if (!trimmed) return;

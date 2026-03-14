@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { authState, checkSession } from '$lib/auth/authState.svelte';
-  import { loadGames, createGame, createEntityType, createEntity, deleteEntity, deleteGameById, renameEntity, gameState } from '$lib/state/gameState.svelte';
+  import { loadGames, createGame, createEntityType, createEntity, deleteEntity, deleteGameById, renameEntity, renameEntityType, deleteEntityTypeById, reorderEntityTypes, gameState } from '$lib/state/gameState.svelte';
   import { selectEntity } from '$lib/state/noteState.svelte';
   import SignIn from '$lib/components/auth/SignIn.svelte';
   import TitleBar from '$lib/components/layout/TitleBar.svelte';
@@ -20,6 +20,7 @@
   let newEntityTypeId = $state('');
   let confirmDeleteEntityId = $state<string | null>(null);
   let confirmDeleteGameId = $state<string | null>(null);
+  let confirmDeleteEntityTypeId = $state<string | null>(null);
 
   onMount(() => {
     checkSession();
@@ -60,6 +61,9 @@
         onDeleteEntity={(id) => confirmDeleteEntityId = id}
         onDeleteGame={(id) => confirmDeleteGameId = id}
         onRenameEntity={(id, name) => renameEntity(id, name)}
+        onDeleteEntityType={(id) => confirmDeleteEntityTypeId = id}
+        onRenameEntityType={(id, name, icon) => renameEntityType(id, name, icon)}
+        onReorderEntityTypes={(ids) => reorderEntityTypes(ids)}
       />
       <MainPanel />
     </div>
@@ -108,6 +112,16 @@
       message="Are you sure you want to delete &quot;{entityToDelete?.name ?? 'this entity'}&quot; and all its notes? This cannot be undone."
       onClose={() => confirmDeleteEntityId = null}
       onConfirm={async () => { await deleteEntity(confirmDeleteEntityId!); confirmDeleteEntityId = null; }}
+    />
+  {/if}
+
+  {#if confirmDeleteEntityTypeId}
+    {@const typeToDelete = gameState.entityTypes.find(t => t.id === confirmDeleteEntityTypeId)}
+    <ConfirmDeleteModal
+      title="Delete Entity Type"
+      message="Are you sure you want to delete &quot;{typeToDelete?.name ?? 'this type'}&quot; and all its entities and notes? This cannot be undone."
+      onClose={() => confirmDeleteEntityTypeId = null}
+      onConfirm={async () => { await deleteEntityTypeById(confirmDeleteEntityTypeId!); confirmDeleteEntityTypeId = null; }}
     />
   {/if}
 
