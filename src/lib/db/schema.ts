@@ -26,6 +26,7 @@ export const entities = pgTable('entities', {
   name: text('name').notNull(),
   summary: text('summary'),
   tags: text('tags').array(),
+  sortOrder: integer('sort_order').default(0),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
 });
@@ -37,6 +38,7 @@ export const notes = pgTable('notes', {
   userId: text('user_id').notNull(),
   title: text('title').notNull(),
   content: jsonb('content'),
+  sortOrder: integer('sort_order').default(0),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
 });

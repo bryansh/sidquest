@@ -29,7 +29,7 @@ export async function createEntity(userId: string, gameId: string, entityTypeId:
   return entity;
 }
 
-export async function updateEntity(id: string, data: { name?: string; summary?: string; tags?: string[] }) {
+export async function updateEntity(id: string, data: { name?: string; summary?: string; tags?: string[]; sortOrder?: number }) {
   const [entity] = await db.update(entities).set({ ...data, updatedAt: new Date() }).where(eq(entities.id, id)).returning();
   return entity;
 }

@@ -8,6 +8,7 @@ export interface Note {
   gameId: string;
   title: string;
   content: any; // TipTap JSON
+  sortOrder: number;
 }
 
 export const noteState = $state<{
@@ -30,6 +31,7 @@ export async function loadAllGameNotes(gameId: string) {
     gameId: r.gameId,
     title: r.title,
     content: r.content,
+    sortOrder: r.sortOrder ?? 0,
   }));
 }
 
@@ -50,6 +52,7 @@ export async function selectEntity(entityId: string) {
     gameId: r.gameId,
     title: r.title,
     content: r.content,
+    sortOrder: r.sortOrder ?? 0,
   }));
   // Auto-select first note
   noteState.activeNoteId = noteState.notes.length > 0 ? noteState.notes[0].id : null;
@@ -63,6 +66,7 @@ export async function createNote(userId: string, gameId: string, entityId: strin
     gameId: row.gameId,
     title: row.title,
     content: row.content,
+    sortOrder: row.sortOrder ?? 0,
   };
   noteState.notes = [...noteState.notes, note];
   noteState.allGameNotes = [...noteState.allGameNotes, note];
@@ -89,6 +93,18 @@ export async function deleteNote(noteId: string) {
   if (noteState.activeNoteId === noteId) {
     noteState.activeNoteId = noteState.notes.length > 0 ? noteState.notes[0].id : null;
   }
+}
+
+export async function reorderNotes(orderedIds: string[]) {
+  const updates: Promise<any>[] = [];
+  for (let i = 0; i < orderedIds.length; i++) {
+    const n = noteState.notes.find(note => note.id === orderedIds[i]);
+    if (n && n.sortOrder !== i) {
+      n.sortOrder = i;
+      updates.push(noteQueries.updateNote(n.id, { sortOrder: i }));
+    }
+  }
+  await Promise.all(updates);
 }
 
 export async function updateNoteContent(noteId: string, content: any, userId?: string, gameId?: string) {

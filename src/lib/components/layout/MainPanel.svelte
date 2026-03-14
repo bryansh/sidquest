@@ -1,6 +1,6 @@
 <script lang="ts">
   import { gameState, renameEntity } from '$lib/state/gameState.svelte';
-  import { noteState, createNote, updateNoteContent, renameNote, deleteNote } from '$lib/state/noteState.svelte';
+  import { noteState, createNote, updateNoteContent, renameNote, deleteNote, reorderNotes } from '$lib/state/noteState.svelte';
   import { authState } from '$lib/auth/authState.svelte';
   import NoteEditor from '../editor/NoteEditor.svelte';
   import BacklinksPanel from '../editor/BacklinksPanel.svelte';
@@ -37,7 +37,7 @@
   );
 
   const entityNotes = $derived(
-    noteState.notes.filter(n => n.entityId === noteState.activeEntityId)
+    noteState.notes.filter(n => n.entityId === noteState.activeEntityId).sort((a, b) => a.sortOrder - b.sortOrder)
   );
 
   const activeNote = $derived(
@@ -77,6 +77,79 @@
       editingTabId = null;
     }
   }
+
+  // Tab drag reordering
+  let tabDragId = $state<string | null>(null);
+  let tabDropTargetId = $state<string | null>(null);
+  let tabDropPosition = $state<'left' | 'right'>('left');
+  let tabDragging = $state(false);
+  let tabDragStartX = 0;
+  let tabContainerEl = $state<HTMLElement | null>(null);
+
+  function handleTabPointerDown(e: PointerEvent, noteId: string) {
+    if (e.button !== 0 || editingTabId) return;
+    // Don't prevent default — allow click to select tab
+    tabDragId = noteId;
+    tabDragStartX = e.clientX;
+    let started = false;
+
+    const onMove = (ev: PointerEvent) => {
+      if (!started && Math.abs(ev.clientX - tabDragStartX) > 5) {
+        started = true;
+        tabDragging = true;
+      }
+      if (started) {
+        updateTabDropTarget(ev.clientX);
+      }
+    };
+
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      if (tabDragging && tabDropTargetId && tabDragId && tabDropTargetId !== tabDragId) {
+        const ids = entityNotes.map(n => n.id);
+        const fromIdx = ids.indexOf(tabDragId);
+        let toIdx = ids.indexOf(tabDropTargetId);
+        if (fromIdx >= 0 && toIdx >= 0) {
+          ids.splice(fromIdx, 1);
+          toIdx = ids.indexOf(tabDropTargetId);
+          const insertIdx = tabDropPosition === 'right' ? toIdx + 1 : toIdx;
+          ids.splice(insertIdx, 0, tabDragId);
+          reorderNotes(ids);
+        }
+      }
+      tabDragId = null;
+      tabDropTargetId = null;
+      tabDragging = false;
+    };
+
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+  }
+
+  function updateTabDropTarget(x: number) {
+    if (!tabContainerEl) return;
+    const tabs = tabContainerEl.querySelectorAll('[data-tab-id]');
+    let closest: string | null = null;
+    let closestDist = Infinity;
+    let pos: 'left' | 'right' = 'left';
+    for (const el of tabs) {
+      const rect = el.getBoundingClientRect();
+      const mid = rect.left + rect.width / 2;
+      const dist = Math.abs(x - mid);
+      if (dist < closestDist) {
+        closestDist = dist;
+        closest = (el as HTMLElement).dataset.tabId!;
+        pos = x < mid ? 'left' : 'right';
+      }
+    }
+    if (closest === tabDragId) {
+      tabDropTargetId = null;
+    } else {
+      tabDropTargetId = closest;
+      tabDropPosition = pos;
+    }
+  }
 </script>
 
 <main class="flex-1 flex flex-col h-full overflow-hidden">
@@ -103,7 +176,7 @@
     </header>
 
     {#if entityNotes.length > 0}
-      <div class="flex gap-1 px-4 pt-2 border-b border-[var(--color-border)] overflow-x-auto">
+      <div class="flex gap-1 px-4 pt-2 border-b border-[var(--color-border)] overflow-x-auto" bind:this={tabContainerEl}>
         {#each entityNotes as note}
           {#if editingTabId === note.id}
             <input
@@ -115,11 +188,21 @@
               class="px-3 py-1.5 text-sm rounded-t bg-[var(--color-surface)] text-[var(--color-text)] border border-b-0 border-[var(--color-border)] outline-none w-32"
             />
           {:else}
-            <div class="group flex items-center gap-0.5 rounded-t transition-colors {note.id === noteState.activeNoteId ? 'bg-[var(--color-surface)] border border-b-0 border-[var(--color-border)]' : ''}">
+            <div
+              class="group relative flex items-center gap-0.5 rounded-t transition-colors {tabDragging && tabDragId === note.id ? 'opacity-40' : ''} {note.id === noteState.activeNoteId ? 'bg-[var(--color-surface)] border border-b-0 border-[var(--color-border)]' : ''}"
+              data-tab-id={note.id}
+            >
+              {#if tabDropTargetId === note.id}
+                <div
+                  class="absolute top-0 bottom-0 w-0.5 bg-[var(--color-accent)] pointer-events-none z-10"
+                  style={tabDropPosition === 'left' ? 'left: -2px' : 'right: -2px'}
+                ></div>
+              {/if}
               <button
                 onclick={() => noteState.activeNoteId = note.id}
                 ondblclick={() => startRename(note)}
-                class="px-3 py-1.5 text-sm transition-colors {note.id === noteState.activeNoteId ? 'text-[var(--color-text)]' : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'}"
+                onpointerdown={(e) => handleTabPointerDown(e, note.id)}
+                class="px-3 py-1.5 text-sm transition-colors cursor-grab active:cursor-grabbing {note.id === noteState.activeNoteId ? 'text-[var(--color-text)]' : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'}"
               >
                 {note.title}
               </button>

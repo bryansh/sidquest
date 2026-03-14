@@ -24,6 +24,7 @@ export interface Entity {
   name: string;
   summary: string | null;
   tags: string[];
+  sortOrder: number;
 }
 
 export const gameState = $state<{
@@ -80,6 +81,7 @@ async function loadGameData(gameId: string) {
     name: r.name,
     summary: r.summary,
     tags: r.tags ?? [],
+    sortOrder: r.sortOrder ?? 0,
   }));
 }
 
@@ -142,6 +144,18 @@ export async function reorderEntityTypes(orderedIds: string[]) {
   await Promise.all(updates);
 }
 
+export async function reorderEntities(orderedIds: string[]) {
+  const updates: Promise<any>[] = [];
+  for (let i = 0; i < orderedIds.length; i++) {
+    const e = gameState.entities.find(ent => ent.id === orderedIds[i]);
+    if (e && e.sortOrder !== i) {
+      e.sortOrder = i;
+      updates.push(entityQueries.updateEntity(e.id, { sortOrder: i }));
+    }
+  }
+  await Promise.all(updates);
+}
+
 export async function renameEntity(entityId: string, name: string) {
   const trimmed = name.trim();
   if (!trimmed) return;
@@ -190,6 +204,7 @@ export async function createEntity(userId: string, entityTypeId: string, name: s
     name: row.name,
     summary: row.summary,
     tags: row.tags ?? [],
+    sortOrder: row.sortOrder ?? 0,
   }];
   return row;
 }

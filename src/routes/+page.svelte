@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { authState, checkSession } from '$lib/auth/authState.svelte';
-  import { loadGames, createGame, createEntityType, createEntity, deleteEntity, deleteGameById, renameEntity, renameEntityType, deleteEntityTypeById, reorderEntityTypes, gameState } from '$lib/state/gameState.svelte';
+  import { loadGames, createGame, createEntityType, createEntity, deleteEntity, deleteGameById, renameEntity, renameEntityType, deleteEntityTypeById, reorderEntityTypes, reorderEntities, gameState } from '$lib/state/gameState.svelte';
   import { selectEntity } from '$lib/state/noteState.svelte';
   import SignIn from '$lib/components/auth/SignIn.svelte';
   import TitleBar from '$lib/components/layout/TitleBar.svelte';
@@ -64,6 +64,7 @@
         onDeleteEntityType={(id) => confirmDeleteEntityTypeId = id}
         onRenameEntityType={(id, name, icon) => renameEntityType(id, name, icon)}
         onReorderEntityTypes={(ids) => reorderEntityTypes(ids)}
+        onReorderEntities={(ids) => reorderEntities(ids)}
       />
       <MainPanel />
     </div>

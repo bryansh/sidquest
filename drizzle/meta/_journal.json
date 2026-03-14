@@ -8,6 +8,20 @@
       "when": 1772873579559,
       "tag": "0000_fluffy_grandmaster",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1773474083730,
+      "tag": "0001_late_rocket_raccoon",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1773519403328,
+      "tag": "0002_overrated_odin",
+      "breakpoints": true
     }
   ]
 }

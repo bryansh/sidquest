@@ -3,7 +3,7 @@
   import type { EntityType, Entity } from '$lib/state/gameState.svelte';
   import EntityItem from './EntityItem.svelte';
 
-  let { entityTypes, entities, activeEntityId, onSelectEntity, onNewEntity, onDeleteEntity, onRenameEntity, onDeleteEntityType, onRenameEntityType, onReorderEntityTypes }: {
+  let { entityTypes, entities, activeEntityId, onSelectEntity, onNewEntity, onDeleteEntity, onRenameEntity, onDeleteEntityType, onRenameEntityType, onReorderEntityTypes, onReorderEntities }: {
     entityTypes: EntityType[];
     entities: Entity[];
     activeEntityId: string | null;
@@ -14,6 +14,7 @@
     onDeleteEntityType: (entityTypeId: string) => void;
     onRenameEntityType: (entityTypeId: string, name: string, icon?: string) => void;
     onReorderEntityTypes: (orderedIds: string[]) => void;
+    onReorderEntities: (orderedIds: string[]) => void;
   } = $props();
 
   const sortedTypes = $derived(
@@ -125,12 +126,90 @@
       dropPosition = pos;
     }
   }
+
+  // Entity drag reordering (within a type)
+  let entityDragId = $state<string | null>(null);
+  let entityDropTargetId = $state<string | null>(null);
+  let entityDropPosition = $state<'above' | 'below'>('above');
+  let entityDragging = $state(false);
+  let entityDragStartY = 0;
+  let entityDragTypeId = $state<string | null>(null);
+
+  function handleEntityPointerDown(e: PointerEvent, entityId: string, typeId: string) {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    entityDragId = entityId;
+    entityDragTypeId = typeId;
+    entityDragStartY = e.clientY;
+    let currentY = e.clientY;
+
+    const onMove = (ev: PointerEvent) => {
+      currentY = ev.clientY;
+      if (!entityDragging && Math.abs(currentY - entityDragStartY) > 5) {
+        entityDragging = true;
+      }
+      if (entityDragging) {
+        updateEntityDropTarget(ev.clientY, typeId);
+      }
+    };
+
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      if (entityDragging && entityDropTargetId && entityDragId && entityDropTargetId !== entityDragId) {
+        const typeEntities = entities
+          .filter(ent => ent.entityTypeId === typeId)
+          .sort((a, b) => a.sortOrder - b.sortOrder);
+        const ids = typeEntities.map(ent => ent.id);
+        const fromIdx = ids.indexOf(entityDragId);
+        let toIdx = ids.indexOf(entityDropTargetId);
+        if (fromIdx >= 0 && toIdx >= 0) {
+          ids.splice(fromIdx, 1);
+          toIdx = ids.indexOf(entityDropTargetId);
+          const insertIdx = entityDropPosition === 'below' ? toIdx + 1 : toIdx;
+          ids.splice(insertIdx, 0, entityDragId);
+          onReorderEntities(ids);
+        }
+      }
+      entityDragId = null;
+      entityDropTargetId = null;
+      entityDragging = false;
+      entityDragTypeId = null;
+    };
+
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+  }
+
+  function updateEntityDropTarget(y: number, typeId: string) {
+    if (!containerEl) return;
+    const items = containerEl.querySelectorAll(`[data-entity-id][data-entity-type="${typeId}"]`);
+    let closest: string | null = null;
+    let closestDist = Infinity;
+    let pos: 'above' | 'below' = 'above';
+    for (const el of items) {
+      const rect = el.getBoundingClientRect();
+      const mid = rect.top + rect.height / 2;
+      const dist = Math.abs(y - mid);
+      if (dist < closestDist) {
+        closestDist = dist;
+        closest = (el as HTMLElement).dataset.entityId!;
+        pos = y < mid ? 'above' : 'below';
+      }
+    }
+    if (closest === entityDragId) {
+      entityDropTargetId = null;
+    } else {
+      entityDropTargetId = closest;
+      entityDropPosition = pos;
+    }
+  }
 </script>
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div bind:this={containerEl}>
   {#each sortedTypes as entityType}
-    {@const typeEntities = entities.filter(e => e.entityTypeId === entityType.id)}
+    {@const typeEntities = entities.filter(e => e.entityTypeId === entityType.id).sort((a, b) => a.sortOrder - b.sortOrder)}
     <div class="mb-1 {dragging && dragId === entityType.id ? 'opacity-40' : ''}">
       <Collapsible.Root>
         {#if editingTypeId === entityType.id}
@@ -187,13 +266,31 @@
         {/if}
         <Collapsible.Content class="ml-2">
           {#each typeEntities as entity}
-            <EntityItem
-              {entity}
-              active={entity.id === activeEntityId}
-              onSelect={() => onSelectEntity(entity.id)}
-              onDelete={() => onDeleteEntity(entity.id)}
-              onRename={(name) => onRenameEntity(entity.id, name)}
-            />
+            <div
+              class="relative flex items-center group/entity {entityDragging && entityDragId === entity.id ? 'opacity-40' : ''}"
+              data-entity-id={entity.id}
+              data-entity-type={entityType.id}
+            >
+              {#if entityDropTargetId === entity.id}
+                <div
+                  class="absolute left-0 right-0 h-0.5 bg-[var(--color-accent)] pointer-events-none z-10"
+                  style={entityDropPosition === 'above' ? 'top: -1px' : 'bottom: -1px'}
+                ></div>
+              {/if}
+              <span
+                class="flex items-center px-1 py-1 cursor-grab active:cursor-grabbing text-[var(--color-text-muted)] text-xs select-none opacity-0 group-hover/entity:opacity-50"
+                onpointerdown={(e) => handleEntityPointerDown(e, entity.id, entityType.id)}
+              >⠿</span>
+              <div class="flex-1 min-w-0">
+                <EntityItem
+                  {entity}
+                  active={entity.id === activeEntityId}
+                  onSelect={() => onSelectEntity(entity.id)}
+                  onDelete={() => onDeleteEntity(entity.id)}
+                  onRename={(name) => onRenameEntity(entity.id, name)}
+                />
+              </div>
+            </div>
           {/each}
           <button
             onclick={() => onNewEntity(entityType.id)}
