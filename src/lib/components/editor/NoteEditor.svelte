@@ -6,13 +6,13 @@
   import type { EditorEvents, Editor } from '@tiptap/core';
   import { generateHTML } from '@tiptap/core';
   import { invoke, convertFileSrc } from '@tauri-apps/api/core';
-  import { listen } from '@tauri-apps/api/event';
   import { appDataDir, join } from '@tauri-apps/api/path';
   import { serialize, deserialize, restoreWikilinks } from './cleanupRoundtrip';
   import { toMarkdown } from '$lib/export/toMarkdown';
   import { save } from '@tauri-apps/plugin-dialog';
   import { noteState } from '$lib/state/noteState.svelte';
   import { gameState } from '$lib/state/gameState.svelte';
+  import { modelState, checkModels, downloadWhisperModel, downloadCleanupModel } from '$lib/state/modelState.svelte';
 
   let { content, onSave, onBeforeCleanup, gameId }: {
     content: any;
@@ -27,7 +27,6 @@
   let listening = $state(false);
   let transcribing = $state(false);
   let cleaningUp = $state(false);
-  let downloadProgress = $state<number | null>(null);
   let exportStatus = $state<string | null>(null);
   let exportStatusTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -37,6 +36,9 @@
     exportStatusTimer = setTimeout(() => { exportStatus = null; }, 3000);
   }
 
+  // Check model availability on first mount
+  checkModels();
+
   async function getModelPath(): Promise<string> {
     const dataDir = await appDataDir();
     return await join(dataDir, 'ggml-base.en.bin');
@@ -44,6 +46,13 @@
 
   async function toggleDictation() {
     if (transcribing) return;
+
+    // Download whisper model if missing
+    if (modelState.whisper.status === 'missing') {
+      await downloadWhisperModel();
+      return;
+    }
+    if (modelState.whisper.status !== 'ready') return;
 
     if (listening) {
       // Stop recording and transcribe
@@ -75,12 +84,18 @@
 
   async function cleanupNote() {
     if (cleaningUp || !editorInstance) return;
+
+    // Download cleanup model if missing
+    if (modelState.cleanup.status === 'missing') {
+      await downloadCleanupModel();
+      return;
+    }
+    if (modelState.cleanup.status !== 'ready') return;
+
     cleaningUp = true;
     try {
       const doc = editorInstance.getJSON();
       const { text, wikilinkMap } = serialize(doc);
-      console.log('[Cleanup] Serialized text:', text);
-      console.log('[Cleanup] Wikilink map:', Object.fromEntries(wikilinkMap));
 
       if (!text.trim()) return;
 
@@ -89,29 +104,9 @@
         await onBeforeCleanup(doc);
       }
 
-      // Ensure model is downloaded
-      const hasModel = await invoke<boolean>('check_cleanup_model');
-      if (!hasModel) {
-        console.log('[Cleanup] Model not downloaded, triggering download...');
-        downloadProgress = 0;
-        const unlisten = await listen<{ downloaded: number; total: number }>('cleanup-model-progress', (event) => {
-          const { downloaded, total } = event.payload;
-          downloadProgress = total > 0 ? Math.round((downloaded / total) * 100) : 0;
-        });
-        try {
-          await invoke('download_cleanup_model');
-        } finally {
-          unlisten();
-          downloadProgress = null;
-        }
-      }
-
       const raw = await invoke<string>('cleanup_note', { text });
-      console.log('[Cleanup] Raw model output:', raw);
       const cleaned = restoreWikilinks(raw, wikilinkMap);
-      console.log('[Cleanup] After restoreWikilinks:', cleaned);
       const newDoc = deserialize(cleaned, wikilinkMap);
-      console.log('[Cleanup] Deserialized doc:', JSON.stringify(newDoc, null, 2));
 
       // Replace editor content and trigger save
       editorInstance.commands.setContent(newDoc);
@@ -266,24 +261,30 @@
     </button>
     <button
       onclick={cleanupNote}
-      disabled={cleaningUp}
-      title="AI cleanup: organize and tidy this note"
-      class="px-2 py-1 rounded transition-colors cursor-pointer disabled:cursor-wait {cleaningUp ? 'text-[var(--color-accent)]' : 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)]'}"
+      disabled={cleaningUp || modelState.cleanup.status === 'downloading' || modelState.cleanup.status === 'checking'}
+      title={modelState.cleanup.status === 'missing' ? 'Download cleanup model' : modelState.cleanup.status === 'downloading' ? 'Downloading...' : 'AI cleanup: organize and tidy this note'}
+      class="px-2 py-1 rounded transition-colors cursor-pointer disabled:cursor-wait {cleaningUp || modelState.cleanup.status === 'downloading' ? 'text-[var(--color-accent)]' : modelState.cleanup.status === 'missing' ? 'text-[var(--color-text-muted)] opacity-50 hover:opacity-100 hover:bg-[var(--color-surface-hover)]' : 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)]'}"
       type="button"
     >
-      &#10024;
+      {#if modelState.cleanup.status === 'missing'}
+        &#10024;&#8595;
+      {:else}
+        &#10024;
+      {/if}
     </button>
     <button
       onclick={toggleDictation}
-      disabled={transcribing}
-      title={listening ? 'Stop & transcribe' : transcribing ? 'Transcribing...' : 'Start dictation'}
-      class="px-2 py-1 rounded transition-colors cursor-pointer disabled:cursor-wait {listening ? 'bg-red-500/20 text-red-400 animate-pulse' : transcribing ? 'text-[var(--color-accent)]' : 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)]'}"
+      disabled={transcribing || modelState.whisper.status === 'downloading' || modelState.whisper.status === 'checking'}
+      title={modelState.whisper.status === 'missing' ? 'Download dictation model' : listening ? 'Stop & transcribe' : transcribing ? 'Transcribing...' : 'Start dictation'}
+      class="px-2 py-1 rounded transition-colors cursor-pointer disabled:cursor-wait {listening ? 'bg-red-500/20 text-red-400 animate-pulse' : transcribing || modelState.whisper.status === 'downloading' ? 'text-[var(--color-accent)]' : modelState.whisper.status === 'missing' ? 'text-[var(--color-text-muted)] opacity-50 hover:opacity-100 hover:bg-[var(--color-surface-hover)]' : 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)]'}"
       type="button"
     >
       {#if listening}
         ⏹ Recording...
       {:else if transcribing}
         Transcribing...
+      {:else if modelState.whisper.status === 'missing'}
+        🎙&#8595;
       {:else}
         🎙
       {/if}
@@ -306,8 +307,10 @@
   <div class="flex items-center px-3 py-1 text-xs text-[var(--color-text-muted)] border-t border-[var(--color-border)] h-6 shrink-0">
     {#if exportStatus}
       <span>{exportStatus}</span>
-    {:else if downloadProgress !== null}
-      <span class="text-[var(--color-accent)] animate-pulse">Downloading cleanup model: {downloadProgress}%</span>
+    {:else if modelState.whisper.status === 'downloading'}
+      <span class="text-[var(--color-accent)] animate-pulse">Downloading dictation model: {modelState.whisper.progress ?? 0}%</span>
+    {:else if modelState.cleanup.status === 'downloading'}
+      <span class="text-[var(--color-accent)] animate-pulse">Downloading cleanup model: {modelState.cleanup.progress ?? 0}%</span>
     {:else if cleaningUp}
       <span class="text-[var(--color-accent)] animate-pulse">Cleaning up...</span>
     {:else if saveStatus === 'saving'}

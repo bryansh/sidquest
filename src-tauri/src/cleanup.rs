@@ -1,5 +1,6 @@
-use std::io::Write;
 use tauri::{AppHandle, Emitter, Manager};
+
+use crate::worker::run_worker;
 
 const MODEL_FILENAME: &str = "google_gemma-3-4b-it-Q4_K_M.gguf";
 const MODEL_URL: &str = "https://huggingface.co/bartowski/google_gemma-3-4b-it-GGUF/resolve/main/google_gemma-3-4b-it-Q4_K_M.gguf";
@@ -10,24 +11,6 @@ fn model_path(app: &AppHandle) -> Result<std::path::PathBuf, String> {
         .app_data_dir()
         .map_err(|e| format!("Failed to get app data dir: {}", e))?;
     Ok(dir.join(MODEL_FILENAME))
-}
-
-fn worker_binary_path() -> Result<std::path::PathBuf, String> {
-    // Check env var override (useful for dev)
-    if let Ok(path) = std::env::var("CLEANUP_WORKER_PATH") {
-        return Ok(path.into());
-    }
-
-    // Same directory as current executable (works for both workspace dev builds and bundled releases)
-    let exe = std::env::current_exe()
-        .map_err(|e| format!("Cannot find current exe: {}", e))?;
-    let dir = exe.parent().ok_or("No parent dir for executable")?;
-    let worker = dir.join("cleanup-worker");
-    if worker.exists() {
-        return Ok(worker);
-    }
-
-    Err(format!("cleanup-worker binary not found in {}", dir.display()))
 }
 
 #[tauri::command]
@@ -88,57 +71,14 @@ pub async fn cleanup_note(
     }
 
     let model_path_str = path.to_string_lossy().to_string();
-    let worker_path = worker_binary_path()?;
 
-    // Spawn the cleanup worker as a separate process to avoid GGML symbol conflicts with whisper-rs
-    let result = tokio::task::spawn_blocking(move || {
+    tokio::task::spawn_blocking(move || {
         let request = serde_json::json!({
             "model_path": model_path_str,
             "text": text,
         });
-
-        let mut child = std::process::Command::new(&worker_path)
-            .stdin(std::process::Stdio::piped())
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::inherit())
-            .spawn()
-            .map_err(|e| format!("Failed to spawn cleanup worker: {}", e))?;
-
-        // Write request and explicitly close stdin so the worker sees EOF
-        {
-            let mut stdin = child.stdin.take()
-                .ok_or("Failed to open worker stdin".to_string())?;
-            serde_json::to_writer(&mut stdin, &request)
-                .map_err(|e| format!("Failed to write to worker: {}", e))?;
-            stdin.flush().map_err(|e| format!("Failed to flush stdin: {}", e))?;
-            // stdin drops here, closing the pipe
-        }
-
-        let output = child
-            .wait_with_output()
-            .map_err(|e| format!("Worker failed: {}", e))?;
-
-        if output.stdout.is_empty() {
-            return Err("Worker produced no output".to_string());
-        }
-
-        let response: serde_json::Value = serde_json::from_slice(&output.stdout)
-            .map_err(|e| format!("Failed to parse worker output: {}. stdout: {}", e, String::from_utf8_lossy(&output.stdout)))?;
-
-        if response["ok"].as_bool() == Some(true) {
-            response["result"]
-                .as_str()
-                .map(|s| s.to_string())
-                .ok_or("Worker returned ok but no result".to_string())
-        } else {
-            Err(response["error"]
-                .as_str()
-                .unwrap_or("Unknown worker error")
-                .to_string())
-        }
+        run_worker("cleanup-worker", &request)
     })
     .await
-    .map_err(|e| format!("Task join error: {}", e))??;
-
-    Ok(result)
+    .map_err(|e| format!("Task join error: {}", e))?
 }

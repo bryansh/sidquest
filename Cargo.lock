@@ -3993,7 +3993,6 @@ dependencies = [
  "tauri-plugin-store",
  "tokio",
  "uuid",
- "whisper-rs",
 ]
 
 [[package]]
@@ -5472,6 +5471,16 @@ dependencies = [
  "cfg-if",
  "cmake",
  "fs_extra",
+]
+
+[[package]]
+name = "whisper-worker"
+version = "0.1.0"
+dependencies = [
+ "hound",
+ "serde",
+ "serde_json",
+ "whisper-rs",
 ]
 
 [[package]]

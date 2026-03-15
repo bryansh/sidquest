@@ -1,6 +1,19 @@
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use std::sync::{Arc, Mutex};
-use tauri::State;
+use tauri::{AppHandle, Emitter, Manager, State};
+
+use crate::worker::run_worker;
+
+const WHISPER_MODEL_FILENAME: &str = "ggml-base.en.bin";
+const WHISPER_MODEL_URL: &str = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin";
+
+fn whisper_model_path(app: &AppHandle) -> Result<std::path::PathBuf, String> {
+    let dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("Failed to get app data dir: {}", e))?;
+    Ok(dir.join(WHISPER_MODEL_FILENAME))
+}
 
 pub struct RecordingState {
     pub samples: Arc<Mutex<Vec<f32>>>,
@@ -111,42 +124,92 @@ pub async fn transcribe(state: State<'_, RecordingState>, model_path: String) ->
         samples
     };
 
-    // Run whisper on a blocking thread since it's CPU-intensive
-    let result = std::thread::spawn(move || -> Result<String, String> {
-        let ctx = whisper_rs::WhisperContext::new_with_params(
-            &model_path,
-            whisper_rs::WhisperContextParameters::default(),
-        ).map_err(|e| format!("Failed to load whisper model: {}", e))?;
+    // Write samples to a temp WAV file for the worker
+    let audio_path = std::env::temp_dir().join(format!("sidquest-dictation-{}.wav", uuid::Uuid::new_v4()));
+    let audio_path_str = audio_path.to_string_lossy().to_string();
 
-        let mut wstate = ctx.create_state()
-            .map_err(|e| format!("Failed to create whisper state: {}", e))?;
+    write_wav(&audio_path_str, &samples_16k, 16000)
+        .map_err(|e| format!("Failed to write temp WAV: {}", e))?;
 
-        let mut params = whisper_rs::FullParams::new(whisper_rs::SamplingStrategy::Greedy { best_of: 1 });
-        params.set_language(Some("en"));
-        params.set_print_special(false);
-        params.set_print_progress(false);
-        params.set_print_realtime(false);
-        params.set_print_timestamps(false);
-        params.set_suppress_blank(true);
-        params.set_suppress_nst(true);
-
-        wstate.full(params, &samples_16k)
-            .map_err(|e| format!("Whisper transcription failed: {}", e))?;
-
-        let num_segments = wstate.full_n_segments()
-            .map_err(|e| format!("Failed to get segments: {}", e))?;
-
-        let mut text = String::new();
-        for i in 0..num_segments {
-            if let Ok(segment) = wstate.full_get_segment_text(i) {
-                text.push_str(&segment);
-            }
-        }
-
-        Ok(text.trim().to_string())
-    }).join().map_err(|_| "Transcription thread panicked".to_string())??;
+    let result = tokio::task::spawn_blocking(move || {
+        let request = serde_json::json!({
+            "model_path": model_path,
+            "audio_path": audio_path_str,
+        });
+        let result = run_worker("whisper-worker", &request);
+        // Clean up temp file
+        let _ = std::fs::remove_file(&audio_path);
+        result
+    })
+    .await
+    .map_err(|e| format!("Task join error: {}", e))??;
 
     Ok(result)
+}
+
+fn write_wav(path: &str, samples: &[f32], sample_rate: u32) -> Result<(), String> {
+    let spec = hound::WavSpec {
+        channels: 1,
+        sample_rate,
+        bits_per_sample: 32,
+        sample_format: hound::SampleFormat::Float,
+    };
+    let mut writer = hound::WavWriter::create(path, spec)
+        .map_err(|e| format!("Failed to create WAV writer: {}", e))?;
+    for &sample in samples {
+        writer.write_sample(sample)
+            .map_err(|e| format!("Failed to write sample: {}", e))?;
+    }
+    writer.finalize()
+        .map_err(|e| format!("Failed to finalize WAV: {}", e))?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn check_whisper_model(app: AppHandle) -> Result<bool, String> {
+    let path = whisper_model_path(&app)?;
+    Ok(path.exists())
+}
+
+#[tauri::command]
+pub async fn download_whisper_model(app: AppHandle, window: tauri::WebviewWindow) -> Result<(), String> {
+    use futures_util::StreamExt;
+
+    let path = whisper_model_path(&app)?;
+
+    if let Some(parent) = path.parent() {
+        tokio::fs::create_dir_all(parent)
+            .await
+            .map_err(|e| format!("Failed to create directory: {}", e))?;
+    }
+
+    let response = reqwest::get(WHISPER_MODEL_URL)
+        .await
+        .map_err(|e| format!("Failed to download model: {}", e))?;
+
+    let total = response.content_length().unwrap_or(0);
+    let mut downloaded: u64 = 0;
+
+    let mut file = tokio::fs::File::create(&path)
+        .await
+        .map_err(|e| format!("Failed to create file: {}", e))?;
+
+    let mut stream = response.bytes_stream();
+
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk.map_err(|e| format!("Download error: {}", e))?;
+        tokio::io::AsyncWriteExt::write_all(&mut file, &chunk)
+            .await
+            .map_err(|e| format!("Write error: {}", e))?;
+
+        downloaded += chunk.len() as u64;
+        let _ = window.emit("whisper-model-progress", serde_json::json!({
+            "downloaded": downloaded,
+            "total": total,
+        }));
+    }
+
+    Ok(())
 }
 
 fn resample(input: &[f32], from_rate: u32, to_rate: u32) -> Vec<f32> {

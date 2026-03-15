@@ -2,6 +2,7 @@ mod cleanup;
 mod dictation;
 mod export;
 mod images;
+mod worker;
 
 use tauri::Manager;
 use tauri::menu::{MenuBuilder, MenuItemBuilder};
@@ -16,6 +17,8 @@ pub fn run() {
             dictation::stop_recording,
             dictation::get_recording_status,
             dictation::transcribe,
+            dictation::check_whisper_model,
+            dictation::download_whisper_model,
             cleanup::check_cleanup_model,
             cleanup::download_cleanup_model,
             cleanup::cleanup_note,

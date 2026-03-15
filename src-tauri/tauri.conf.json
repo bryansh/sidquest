@@ -4,9 +4,9 @@
   "version": "0.1.0",
   "identifier": "com.sidquest.app",
   "build": {
-    "beforeDevCommand": "cargo build -p cleanup-worker && npm run dev",
+    "beforeDevCommand": "cargo build -p cleanup-worker -p whisper-worker && npm run dev",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "cargo build --release -p cleanup-worker && npm run build",
+    "beforeBuildCommand": "cargo build --release -p cleanup-worker -p whisper-worker && npm run build",
     "frontendDist": "../build"
   },
   "app": {
