@@ -30,17 +30,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_store::Builder::default().build())
-        .plugin(
-            tauri_plugin_global_shortcut::Builder::new()
-                .with_shortcut("CmdOrCtrl+Shift+G")
-                .expect("failed to register global shortcut")
-                .with_handler(|app, _shortcut, event| {
-                    if event.state == tauri_plugin_global_shortcut::ShortcutState::Pressed {
-                        toggle_window(app);
-                    }
-                })
-                .build(),
-        )
+        .plugin(tauri_plugin_global_shortcut::Builder::default().build())
         .setup(|app| {
             // Build tray menu
             let show = MenuItemBuilder::with_id("show", "Show Sidquest")

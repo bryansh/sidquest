@@ -1,6 +1,6 @@
 <script lang="ts">
   import { Dialog } from 'bits-ui';
-  import { settings, updateSettings, accentColors, type Theme, type AccentColor } from '$lib/state/settingsState.svelte';
+  import { settings, updateSettings, accentColors, formatShortcut, displayShortcut, type Theme, type AccentColor } from '$lib/state/settingsState.svelte';
 
   let { onClose }: { onClose: () => void } = $props();
 
@@ -18,6 +18,33 @@
 
   function setFontSize(size: number) {
     updateSettings({ editorFontSize: Math.max(12, Math.min(20, size)) });
+  }
+
+  function focusEl(node: HTMLElement) {
+    requestAnimationFrame(() => node.focus());
+  }
+
+  let recordingHotkey = $state(false);
+  let hotkeyError = $state('');
+
+  function handleHotkeyCapture(e: KeyboardEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (e.key === 'Escape') {
+      recordingHotkey = false;
+      return;
+    }
+
+    const shortcut = formatShortcut(e);
+    if (!shortcut) return;
+
+    recordingHotkey = false;
+    hotkeyError = '';
+    updateSettings({ globalHotkey: shortcut }).catch((err) => {
+      hotkeyError = 'Failed to register shortcut';
+      console.error('[Settings] Hotkey error:', err);
+    });
   }
 
 </script>
@@ -99,6 +126,36 @@
               class="w-7 h-7 rounded border border-[var(--color-border)] text-sm text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] transition-colors"
             >+</button>
           </div>
+        </div>
+
+        <!-- Global Hotkey -->
+        <div class="flex items-center justify-between">
+          <div>
+            <label class="text-sm text-[var(--color-text)]">Global Hotkey</label>
+            <p class="text-xs text-[var(--color-text-muted)]">Show/hide Sidquest from anywhere</p>
+            {#if hotkeyError}
+              <p class="text-xs text-red-400 mt-1">{hotkeyError}</p>
+            {/if}
+          </div>
+          {#if recordingHotkey}
+            <!-- svelte-ignore a11y_no_static_element_interactions -->
+            <div
+              class="px-3 py-1.5 rounded text-sm border border-[var(--color-accent)] bg-[var(--color-accent)]/10 text-[var(--color-text)] animate-pulse min-w-[80px] text-center"
+              tabindex="-1"
+              onkeydown={handleHotkeyCapture}
+              onblur={() => recordingHotkey = false}
+              use:focusEl
+            >
+              Press keys...
+            </div>
+          {:else}
+            <button
+              onclick={() => { recordingHotkey = true; hotkeyError = ''; }}
+              class="px-3 py-1.5 rounded text-sm border border-[var(--color-border)] text-[var(--color-text)] hover:border-[var(--color-text-muted)] transition-colors min-w-[80px] text-center"
+            >
+              {displayShortcut(settings.globalHotkey)}
+            </button>
+          {/if}
         </div>
 
         <!-- Spell Check -->
