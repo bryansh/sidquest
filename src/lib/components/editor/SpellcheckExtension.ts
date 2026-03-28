@@ -17,8 +17,15 @@ function getDictionary() {
 
 const WORD_RE = /[a-zA-Z'\u2019]+/g;
 
+// Words the dictionary knows but only with unusual casing (e.g., WiFi)
+const caseExceptions = new Set(['wifi', 'macos', 'iphone', 'ipad', 'imac', 'ios']);
+
 function shouldSkip(word: string): boolean {
-  return word.length < 2 || /^[A-Z]{2,}$/.test(word) || /^\d+$/.test(word);
+  if (word.length < 2) return true;
+  if (/^[A-Z]{2,}$/.test(word)) return true;
+  if (/^\d+$/.test(word)) return true;
+  if (caseExceptions.has(word.toLowerCase())) return true;
+  return false;
 }
 
 function buildDecorations(doc: any): DecorationSet {
@@ -36,8 +43,15 @@ function buildDecorations(doc: any): DecorationSet {
     while ((match = WORD_RE.exec(text)) !== null) {
       const word = match[0];
       if (shouldSkip(word)) continue;
+      // Normalize curly apostrophes to straight for dictionary lookup
+      const normalized = word.replace(/\u2019/g, "'");
+      if (dict.check(normalized)) continue;
       if (dict.check(word)) continue;
-      if (word[0] === word[0].toUpperCase() && dict.check(word.toLowerCase())) continue;
+      // Try case variations: lowercase, title case
+      const lower = normalized.toLowerCase();
+      if (dict.check(lower)) continue;
+      if (dict.check(lower[0].toUpperCase() + lower.slice(1))) continue;
+      if (dict.check(word.toUpperCase())) continue;
 
       const from = pos + match.index;
       const to = from + word.length;
