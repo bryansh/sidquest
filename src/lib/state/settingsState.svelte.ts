@@ -23,6 +23,7 @@ export interface Settings {
   editorFontSize: number;
   spellCheck: boolean;
   globalHotkey: string;
+  sidebarWidth: number;
 }
 
 const defaults: Settings = {
@@ -32,6 +33,7 @@ const defaults: Settings = {
   editorFontSize: 15,
   spellCheck: true,
   globalHotkey: 'CommandOrControl+Shift+G',
+  sidebarWidth: 256,
 };
 
 export const settings = $state<Settings>({ ...defaults });

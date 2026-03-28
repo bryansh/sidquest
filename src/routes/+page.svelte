@@ -3,7 +3,8 @@
   import { authState, checkSession } from '$lib/auth/authState.svelte';
   import { loadGames, createGame, createEntityType, createEntity, deleteEntity, deleteGameById, renameEntity, renameEntityType, deleteEntityTypeById, reorderEntityTypes, reorderEntities, gameState } from '$lib/state/gameState.svelte';
   import { selectEntity } from '$lib/state/noteState.svelte';
-  import { loadSettings } from '$lib/state/settingsState.svelte';
+  import { loadSettings, settings, updateSettings } from '$lib/state/settingsState.svelte';
+  import { uiState } from '$lib/state/uiState.svelte';
   import { getLocalDb } from '$lib/db/local/sqlite';
   import { hydrateIfNeeded } from '$lib/db/sync/hydrate';
   import { initSyncService } from '$lib/state/syncState.svelte';
@@ -27,6 +28,29 @@
   let confirmDeleteGameId = $state<string | null>(null);
   let confirmDeleteEntityTypeId = $state<string | null>(null);
   let showSettings = $state(false);
+  let resizing = $state(false);
+
+  function handleResizeStart(e: PointerEvent) {
+    e.preventDefault();
+    resizing = true;
+    const startX = e.clientX;
+    const startWidth = settings.sidebarWidth;
+
+    function onMove(e: PointerEvent) {
+      const newWidth = Math.max(180, Math.min(480, startWidth + e.clientX - startX));
+      settings.sidebarWidth = newWidth;
+    }
+
+    function onUp() {
+      resizing = false;
+      updateSettings({ sidebarWidth: settings.sidebarWidth });
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+    }
+
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+  }
 
   onMount(() => {
     checkSession();
@@ -36,6 +60,10 @@
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault();
         showSearch = !showSearch;
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
+        e.preventDefault();
+        uiState.findOpen = !uiState.findOpen;
       }
     };
     window.addEventListener('keydown', handleKeydown);
@@ -65,7 +93,7 @@
 {:else}
   <div class="flex flex-col h-screen w-screen bg-[var(--color-bg)] overflow-hidden">
     <TitleBar onOpenSettings={() => showSettings = true} />
-    <div class="flex flex-1 overflow-hidden">
+    <div class="flex flex-1 overflow-hidden" style="--sidebar-width: {settings.sidebarWidth}px">
       <Sidebar
         onNewGame={() => showNewGame = true}
         onNewEntityType={() => showNewEntityType = true}
@@ -79,6 +107,11 @@
         onReorderEntityTypes={(ids) => reorderEntityTypes(ids)}
         onReorderEntities={(ids) => reorderEntities(ids)}
       />
+      <!-- svelte-ignore a11y_no_static_element_interactions -->
+      <div
+        class="w-1 shrink-0 cursor-col-resize hover:bg-[var(--color-accent)]/50 transition-colors {resizing ? 'bg-[var(--color-accent)]' : ''}"
+        onpointerdown={handleResizeStart}
+      ></div>
       <MainPanel />
     </div>
   </div>

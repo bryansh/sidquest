@@ -15,6 +15,8 @@
   import { gameState } from '$lib/state/gameState.svelte';
   import { modelState, checkModels, downloadWhisperModel, downloadCleanupModel } from '$lib/state/modelState.svelte';
   import { settings } from '$lib/state/settingsState.svelte';
+  import { uiState } from '$lib/state/uiState.svelte';
+  import FindBar from './FindBar.svelte';
 
   let { content, onSave, onBeforeCleanup, gameId }: {
     content: any;
@@ -274,6 +276,9 @@
 </script>
 
 <div class="flex flex-col h-full">
+  {#if uiState.findOpen && editorInstance}
+    <FindBar editor={editorInstance} onClose={() => uiState.findOpen = false} />
+  {/if}
   <div class="flex items-center justify-end gap-2 px-2 py-1 text-xs text-[var(--color-text-muted)]">
     <button
       onclick={() => exportMarkdown()}

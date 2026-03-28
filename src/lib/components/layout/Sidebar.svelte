@@ -19,7 +19,7 @@
   } = $props();
 </script>
 
-<aside class="flex flex-col w-64 min-w-64 h-full border-r border-[var(--color-border)] bg-[var(--color-surface)]">
+<aside class="flex flex-col h-full border-r border-[var(--color-border)] bg-[var(--color-surface)]" style="width: var(--sidebar-width, 256px); min-width: 180px; max-width: 480px;">
   <div class="p-3 border-b border-[var(--color-border)]">
     <GameSelector onNewGame={onNewGame} onDeleteGame={onDeleteGame} />
   </div>
