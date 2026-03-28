@@ -3,6 +3,7 @@
   import StarterKit from '@tiptap/starter-kit';
   import Placeholder from '@tiptap/extension-placeholder';
   import { WikilinkExtension } from './WikilinkExtension';
+  import { SpellcheckExtension, spellcheckKey } from './SpellcheckExtension';
   import type { EditorEvents, Editor } from '@tiptap/core';
   import { generateHTML } from '@tiptap/core';
   import { invoke, convertFileSrc } from '@tauri-apps/api/core';
@@ -13,6 +14,7 @@
   import { noteState } from '$lib/state/noteState.svelte';
   import { gameState } from '$lib/state/gameState.svelte';
   import { modelState, checkModels, downloadWhisperModel, downloadCleanupModel } from '$lib/state/modelState.svelte';
+  import { settings } from '$lib/state/settingsState.svelte';
 
   let { content, onSave, onBeforeCleanup, gameId }: {
     content: any;
@@ -184,6 +186,7 @@
     ...defaultExtensions,
     Placeholder.configure({ placeholder: 'Start writing...' }),
     WikilinkExtension,
+    SpellcheckExtension,
   ];
 
   // StarterKit provides a complete schema (doc, text, paragraph, etc.) for generateHTML
@@ -232,7 +235,28 @@
     if (touched) view.dispatch(tr);
   });
 
+  // Called from settings modal when spellcheck is toggled
+  // Exported so settings can call it, but we also subscribe to changes
+  function applySpellcheck(enabled: boolean) {
+    if (!editorInstance?.view) return;
+    try {
+      editorInstance.view.dispatch(
+        editorInstance.state.tr.setMeta(spellcheckKey, { enabled })
+      );
+    } catch {}
+  }
+
+  // Watch for setting changes via a derived subscription
+  let prevSpellCheck = settings.spellCheck;
+  function checkSpellcheckSetting() {
+    if (settings.spellCheck !== prevSpellCheck) {
+      prevSpellCheck = settings.spellCheck;
+      applySpellcheck(settings.spellCheck);
+    }
+  }
+
   function handleUpdate({ editor }: EditorEvents['update']) {
+    checkSpellcheckSetting();
     if (saveTimer) clearTimeout(saveTimer);
     saveStatus = 'idle';
     saveTimer = setTimeout(async () => {
@@ -291,12 +315,21 @@
     </button>
   </div>
   <!-- svelte-ignore a11y_no_static_element_interactions -->
-  <div class="flex-1 overflow-y-auto tipex-wrapper" onpaste={handleImagePaste} ondrop={handleImageDrop} ondragover={handleDragOver}>
+  <div class="flex-1 overflow-y-auto tipex-wrapper" style="--editor-font-size: {settings.editorFontSize}px" onpaste={handleImagePaste} ondrop={handleImageDrop} ondragover={handleDragOver}>
     <Tipex
       body={getInitialBody()}
       {extensions}
       onupdate={handleUpdate as any}
-      oncreate={({ editor }: any) => editor.commands.focus('end')}
+      oncreate={({ editor }: any) => {
+        editor.commands.focus('end');
+        if (settings.spellCheck) {
+          setTimeout(() => {
+            try {
+              editor.view.dispatch(editor.state.tr.setMeta(spellcheckKey, { enabled: true }));
+            } catch {}
+          }, 300);
+        }
+      }}
       bind:tipex={editorInstance as any}
       class="h-full"
       !focal
@@ -329,7 +362,7 @@
     padding: 1rem;
     outline: none;
     color: var(--color-text);
-    font-size: 0.9375rem;
+    font-size: var(--editor-font-size, 0.9375rem);
     line-height: 1.6;
   }
   .tipex-wrapper :global(.tiptap > * + *) {
@@ -377,5 +410,10 @@
     float: left;
     height: 0;
     pointer-events: none;
+  }
+  .tipex-wrapper :global(.spellcheck-error) {
+    text-decoration: underline wavy red;
+    text-decoration-skip-ink: none;
+    text-underline-offset: 3px;
   }
 </style>

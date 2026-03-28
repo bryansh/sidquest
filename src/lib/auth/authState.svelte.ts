@@ -72,13 +72,27 @@ export async function signIn(email: string, password: string) {
   authState.loading = true;
   authState.error = null;
   try {
-    let { data, error } = await authClient.signIn.email({ email, password });
+    let data: any = null;
+    let error: any = null;
+    try {
+      ({ data, error } = await authClient.signIn.email({ email, password }));
+    } catch (e: any) {
+      error = { message: e.message ?? 'Sign in failed' };
+    }
     if (error) {
       // Auto-reset password and retry
-      console.log('[Auth] Sign-in failed, attempting password reset...');
+      console.log('[Auth] Sign-in failed:', error.message, '— attempting password reset...');
       const reset = await forceResetPassword(email, password);
+      console.log('[Auth] Force reset result:', reset);
       if (reset) {
-        ({ data, error } = await authClient.signIn.email({ email, password }));
+        try {
+          const retry = await authClient.signIn.email({ email, password });
+          console.log('[Auth] Retry result:', retry.error?.message ?? 'success');
+          data = retry.data;
+          error = retry.error;
+        } catch (e: any) {
+          error = { message: e.message ?? 'Sign in failed' };
+        }
       }
       if (error) {
         authState.error = error.message ?? 'Sign in failed';

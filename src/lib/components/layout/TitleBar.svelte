@@ -1,16 +1,12 @@
 <script lang="ts">
   import { getCurrentWindow } from '@tauri-apps/api/window';
-  import { uiState } from '$lib/state/uiState.svelte';
   import { authState, signOut } from '$lib/auth/authState.svelte';
+  import { settings, updateSettings } from '$lib/state/settingsState.svelte';
 
-  async function toggleAlwaysOnTop() {
-    const next = !uiState.alwaysOnTop;
-    try {
-      await getCurrentWindow().setAlwaysOnTop(next);
-      uiState.alwaysOnTop = next;
-    } catch (e) {
-      console.error('[TitleBar] setAlwaysOnTop failed:', e);
-    }
+  let { onOpenSettings }: { onOpenSettings: () => void } = $props();
+
+  function toggleAlwaysOnTop() {
+    updateSettings({ alwaysOnTop: !settings.alwaysOnTop });
   }
 </script>
 
@@ -34,11 +30,18 @@
       </button>
     {/if}
     <button
-      onclick={toggleAlwaysOnTop}
-      title={uiState.alwaysOnTop ? 'Unpin from top' : 'Pin on top'}
-      class="text-xs px-2 py-1 rounded transition-colors {uiState.alwaysOnTop ? 'bg-[var(--color-accent)] text-white' : 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)]'}"
+      onclick={onOpenSettings}
+      title="Settings"
+      class="text-xs px-2 py-1 rounded text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] transition-colors"
     >
-      📌
+      &#9881;
+    </button>
+    <button
+      onclick={toggleAlwaysOnTop}
+      title={settings.alwaysOnTop ? 'Unpin from top' : 'Pin on top'}
+      class="text-xs px-2 py-1 rounded transition-colors {settings.alwaysOnTop ? 'bg-[var(--color-accent)] text-white' : 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)]'}"
+    >
+      &#128204;
     </button>
     <button
       onclick={() => getCurrentWindow().minimize()}

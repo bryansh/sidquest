@@ -3,6 +3,7 @@
   import { authState, checkSession } from '$lib/auth/authState.svelte';
   import { loadGames, createGame, createEntityType, createEntity, deleteEntity, deleteGameById, renameEntity, renameEntityType, deleteEntityTypeById, reorderEntityTypes, reorderEntities, gameState } from '$lib/state/gameState.svelte';
   import { selectEntity } from '$lib/state/noteState.svelte';
+  import { loadSettings } from '$lib/state/settingsState.svelte';
   import SignIn from '$lib/components/auth/SignIn.svelte';
   import TitleBar from '$lib/components/layout/TitleBar.svelte';
   import Sidebar from '$lib/components/layout/Sidebar.svelte';
@@ -12,6 +13,7 @@
   import NewEntityModal from '$lib/components/modals/NewEntityModal.svelte';
   import SearchModal from '$lib/components/modals/SearchModal.svelte';
   import ConfirmDeleteModal from '$lib/components/modals/ConfirmDeleteModal.svelte';
+  import SettingsModal from '$lib/components/modals/SettingsModal.svelte';
 
   let showSearch = $state(false);
   let showNewGame = $state(false);
@@ -21,9 +23,11 @@
   let confirmDeleteEntityId = $state<string | null>(null);
   let confirmDeleteGameId = $state<string | null>(null);
   let confirmDeleteEntityTypeId = $state<string | null>(null);
+  let showSettings = $state(false);
 
   onMount(() => {
     checkSession();
+    loadSettings();
 
     const handleKeydown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
@@ -51,7 +55,7 @@
   <SignIn />
 {:else}
   <div class="flex flex-col h-screen w-screen bg-[var(--color-bg)] overflow-hidden">
-    <TitleBar />
+    <TitleBar onOpenSettings={() => showSettings = true} />
     <div class="flex flex-1 overflow-hidden">
       <Sidebar
         onNewGame={() => showNewGame = true}
@@ -124,6 +128,10 @@
       onClose={() => confirmDeleteEntityTypeId = null}
       onConfirm={async () => { await deleteEntityTypeById(confirmDeleteEntityTypeId!); confirmDeleteEntityTypeId = null; }}
     />
+  {/if}
+
+  {#if showSettings}
+    <SettingsModal onClose={() => showSettings = false} />
   {/if}
 
   {#if confirmDeleteGameId}
