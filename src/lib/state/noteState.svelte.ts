@@ -84,6 +84,7 @@ export async function renameNote(noteId: string, title: string) {
   if (note) note.title = trimmed;
   const gameNote = noteState.allGameNotes.find(n => n.id === noteId);
   if (gameNote) gameNote.title = trimmed;
+  window.dispatchEvent(new CustomEvent('wikilinks-refresh'));
 }
 
 export async function deleteNote(noteId: string) {

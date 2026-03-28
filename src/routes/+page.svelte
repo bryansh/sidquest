@@ -52,8 +52,17 @@
     window.addEventListener('pointerup', onUp);
   }
 
+  async function onAuthenticated(userId: string) {
+    await getLocalDb();
+    await hydrateIfNeeded(userId);
+    await loadGames(userId);
+    initSyncService();
+  }
+
   onMount(() => {
-    checkSession();
+    checkSession().then(() => {
+      if (authState.user) onAuthenticated(authState.user.id);
+    });
     loadSettings();
 
     const handleKeydown = (e: KeyboardEvent) => {
@@ -66,21 +75,16 @@
         uiState.findOpen = !uiState.findOpen;
       }
     };
+    const handleAuthSuccess = (e: Event) => {
+      const userId = (e as CustomEvent).detail?.userId;
+      if (userId) onAuthenticated(userId);
+    };
     window.addEventListener('keydown', handleKeydown);
-    return () => window.removeEventListener('keydown', handleKeydown);
-  });
-
-  // Init SQLite + hydrate + load games when user is authenticated
-  $effect(() => {
-    if (authState.user) {
-      const userId = authState.user.id;
-      (async () => {
-        await getLocalDb();
-        await hydrateIfNeeded(userId);
-        await loadGames(userId);
-        initSyncService();
-      })();
-    }
+    window.addEventListener('auth-success', handleAuthSuccess);
+    return () => {
+      window.removeEventListener('keydown', handleKeydown);
+      window.removeEventListener('auth-success', handleAuthSuccess);
+    };
   });
 </script>
 

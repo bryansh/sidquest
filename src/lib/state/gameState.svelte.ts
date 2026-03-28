@@ -162,6 +162,7 @@ export async function renameEntity(entityId: string, name: string) {
   await entityQueries.updateEntity(entityId, { name: trimmed });
   const entity = gameState.entities.find(e => e.id === entityId);
   if (entity) entity.name = trimmed;
+  window.dispatchEvent(new CustomEvent('wikilinks-refresh'));
 }
 
 export async function deleteEntity(entityId: string) {

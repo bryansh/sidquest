@@ -205,15 +205,9 @@
     }
   }
 
-  // Build a snapshot of note/entity names so $effect can detect changes
-  const nameSnapshot = $derived(
-    noteState.allGameNotes.map(n => n.title).join('\0') +
-    gameState.entities.map(e => e.name).join('\0')
-  );
+  import { onMount, onDestroy } from 'svelte';
 
-  // When names change, re-render wikilink nodes in the editor
-  $effect(() => {
-    nameSnapshot; // track
+  function refreshWikilinks() {
     if (!editorInstance) return;
     const { state, view } = editorInstance;
     const { tr } = state;
@@ -235,6 +229,11 @@
       }
     });
     if (touched) view.dispatch(tr);
+  }
+
+  onMount(() => {
+    window.addEventListener('wikilinks-refresh', refreshWikilinks);
+    return () => window.removeEventListener('wikilinks-refresh', refreshWikilinks);
   });
 
   // Called from settings modal when spellcheck is toggled

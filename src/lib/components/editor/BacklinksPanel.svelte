@@ -1,6 +1,7 @@
 <script lang="ts">
   import { getBacklinks } from '$lib/db/local/queries/links';
-  import { noteState, selectEntity } from '$lib/state/noteState.svelte';
+  import { noteState } from '$lib/state/noteState.svelte';
+  import { onMount } from 'svelte';
 
   let { noteId }: { noteId: string } = $props();
 
@@ -8,8 +9,7 @@
   let expanded = $state(false);
   let loading = $state(true);
 
-  $effect(() => {
-    loading = true;
+  onMount(() => {
     getBacklinks(noteId).then(rows => {
       backlinks = rows;
       loading = false;

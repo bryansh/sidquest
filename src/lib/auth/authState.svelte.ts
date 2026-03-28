@@ -134,6 +134,7 @@ export async function signIn(email: string, password: string) {
         name: data.user.name ?? data.user.email,
       };
       await cacheUser(authState.user);
+      window.dispatchEvent(new CustomEvent('auth-success', { detail: { userId: authState.user.id } }));
     }
   } catch (e: any) {
     authState.error = e.message ?? 'Sign in failed';
@@ -158,6 +159,7 @@ export async function signUp(email: string, password: string, name: string) {
         name: data.user.name ?? data.user.email,
       };
       await cacheUser(authState.user);
+      window.dispatchEvent(new CustomEvent('auth-success', { detail: { userId: authState.user.id } }));
     }
   } catch (e: any) {
     authState.error = e.message ?? 'Sign up failed';
