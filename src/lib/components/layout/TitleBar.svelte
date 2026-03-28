@@ -2,8 +2,19 @@
   import { getCurrentWindow } from '@tauri-apps/api/window';
   import { authState, signOut } from '$lib/auth/authState.svelte';
   import { settings, updateSettings } from '$lib/state/settingsState.svelte';
+  import { syncState } from '$lib/state/syncState.svelte';
 
   let { onOpenSettings }: { onOpenSettings: () => void } = $props();
+
+  function formatLastSync(iso: string | null): string {
+    if (!iso) return 'Never synced';
+    const diff = Date.now() - new Date(iso).getTime();
+    const mins = Math.floor(diff / 60_000);
+    if (mins < 1) return 'Synced just now';
+    if (mins < 60) return `Synced ${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    return `Synced ${hrs}h ago`;
+  }
 
   function toggleAlwaysOnTop() {
     updateSettings({ alwaysOnTop: !settings.alwaysOnTop });
@@ -21,6 +32,34 @@
   <!-- No data-tauri-drag-region here so buttons receive clicks -->
   <div class="flex items-center gap-2" onmousedown={(e) => e.stopPropagation()}>
     {#if authState.user}
+      <!-- Sync status indicator -->
+      <div
+        class="flex items-center gap-1.5 mr-2"
+        title={syncState.error
+          ? `Sync error: ${syncState.error}`
+          : !syncState.online
+            ? `Offline${syncState.pendingChanges > 0 ? ` — ${syncState.pendingChanges} pending` : ''}`
+            : syncState.syncing
+              ? 'Syncing...'
+              : formatLastSync(syncState.lastSyncAt)}
+      >
+        <span
+          class="w-2 h-2 rounded-full {syncState.error
+            ? 'bg-red-400'
+            : !syncState.online
+              ? 'bg-gray-400'
+              : syncState.syncing
+                ? 'bg-yellow-400 animate-pulse'
+                : 'bg-green-400'}"
+        ></span>
+        {#if !syncState.online}
+          <span class="text-xs text-[var(--color-text-muted)]">Offline</span>
+        {/if}
+        {#if syncState.pendingChanges > 0 && !syncState.online}
+          <span class="text-xs text-[var(--color-text-muted)]">({syncState.pendingChanges})</span>
+        {/if}
+      </div>
+
       <span class="text-xs text-[var(--color-text-muted)] mr-1">{authState.user.email}</span>
       <button
         onclick={signOut}

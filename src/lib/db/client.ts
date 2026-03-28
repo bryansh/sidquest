@@ -4,5 +4,5 @@ import * as schema from './schema';
 
 const DATABASE_URL = import.meta.env.VITE_DATABASE_URL || '';
 
-const sql = neon(DATABASE_URL);
+const sql = neon(DATABASE_URL, { disableWarningInBrowsers: true });
 export const db = drizzle(sql, { schema });

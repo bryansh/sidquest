@@ -2,8 +2,10 @@ import { authClient, NEON_AUTH_URL } from './client';
 import { neon } from '@neondatabase/serverless';
 import { scryptAsync } from '@noble/hashes/scrypt.js';
 import { bytesToHex } from '@noble/hashes/utils.js';
+import { LazyStore } from '@tauri-apps/plugin-store';
 
-const sql = neon(import.meta.env.VITE_DATABASE_URL || '');
+const sql = neon(import.meta.env.VITE_DATABASE_URL || '', { disableWarningInBrowsers: true });
+const authCache = new LazyStore('auth-cache.json');
 
 async function forceResetPassword(email: string, password: string): Promise<boolean> {
   try {
@@ -47,6 +49,24 @@ export const authState = $state<{
   error: null,
 });
 
+async function cacheUser(user: User) {
+  try {
+    await authCache.set('cachedUser', { id: user.id, email: user.email, name: user.name });
+    await authCache.save();
+  } catch (e) {
+    console.error('[Auth] Failed to cache user:', e);
+  }
+}
+
+async function getCachedUser(): Promise<User | null> {
+  try {
+    const cached = await authCache.get<User>('cachedUser');
+    return cached ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export async function checkSession() {
   authState.loading = true;
   authState.error = null;
@@ -58,11 +78,19 @@ export async function checkSession() {
         email: data.user.email,
         name: data.user.name ?? data.user.email,
       };
+      await cacheUser(authState.user);
     } else {
       authState.user = null;
     }
   } catch {
-    authState.user = null;
+    // Network failure — try cached user for offline mode
+    const cached = await getCachedUser();
+    if (cached) {
+      console.log('[Auth] Offline — using cached session for', cached.email);
+      authState.user = cached;
+    } else {
+      authState.user = null;
+    }
   } finally {
     authState.loading = false;
   }
@@ -105,6 +133,7 @@ export async function signIn(email: string, password: string) {
         email: data.user.email,
         name: data.user.name ?? data.user.email,
       };
+      await cacheUser(authState.user);
     }
   } catch (e: any) {
     authState.error = e.message ?? 'Sign in failed';
@@ -128,6 +157,7 @@ export async function signUp(email: string, password: string, name: string) {
         email: data.user.email,
         name: data.user.name ?? data.user.email,
       };
+      await cacheUser(authState.user);
     }
   } catch (e: any) {
     authState.error = e.message ?? 'Sign up failed';

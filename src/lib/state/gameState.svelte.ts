@@ -1,5 +1,5 @@
-import * as gameQueries from '$lib/db/queries/games';
-import * as entityQueries from '$lib/db/queries/entities';
+import * as gameQueries from '$lib/db/local/queries/games';
+import * as entityQueries from '$lib/db/local/queries/entities';
 import { restoreLastNote, loadAllGameNotes, noteState } from '$lib/state/noteState.svelte';
 
 export interface Game {

@@ -1,5 +1,5 @@
-import * as noteQueries from '$lib/db/queries/notes';
-import { syncNoteLinks } from '$lib/db/queries/links';
+import * as noteQueries from '$lib/db/local/queries/notes';
+import { syncNoteLinks } from '$lib/db/local/queries/links';
 import { extractWikilinkIds } from '$lib/wikilinks';
 
 export interface Note {

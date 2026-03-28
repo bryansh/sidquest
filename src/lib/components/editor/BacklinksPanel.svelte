@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { getBacklinks } from '$lib/db/queries/links';
+  import { getBacklinks } from '$lib/db/local/queries/links';
   import { noteState, selectEntity } from '$lib/state/noteState.svelte';
 
   let { noteId }: { noteId: string } = $props();

@@ -6,6 +6,7 @@ export const games = pgTable('games', {
   name: text('name').notNull(),
   description: text('description'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
 });
 
 export const entityTypes = pgTable('entity_types', {
@@ -16,6 +17,7 @@ export const entityTypes = pgTable('entity_types', {
   color: text('color'),
   icon: text('icon'),
   sortOrder: integer('sort_order').default(0),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
 });
 
 export const entities = pgTable('entities', {
@@ -49,6 +51,7 @@ export const noteLinks = pgTable('note_links', {
   targetNoteId: uuid('target_note_id').references(() => notes.id, { onDelete: 'cascade' }).notNull(),
   gameId: uuid('game_id').notNull(),
   userId: text('user_id').notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
 }, (table) => [
   unique().on(table.sourceNoteId, table.targetNoteId),

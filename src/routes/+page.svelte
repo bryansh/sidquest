@@ -4,6 +4,9 @@
   import { loadGames, createGame, createEntityType, createEntity, deleteEntity, deleteGameById, renameEntity, renameEntityType, deleteEntityTypeById, reorderEntityTypes, reorderEntities, gameState } from '$lib/state/gameState.svelte';
   import { selectEntity } from '$lib/state/noteState.svelte';
   import { loadSettings } from '$lib/state/settingsState.svelte';
+  import { getLocalDb } from '$lib/db/local/sqlite';
+  import { hydrateIfNeeded } from '$lib/db/sync/hydrate';
+  import { initSyncService } from '$lib/state/syncState.svelte';
   import SignIn from '$lib/components/auth/SignIn.svelte';
   import TitleBar from '$lib/components/layout/TitleBar.svelte';
   import Sidebar from '$lib/components/layout/Sidebar.svelte';
@@ -39,10 +42,16 @@
     return () => window.removeEventListener('keydown', handleKeydown);
   });
 
-  // Load games when user is authenticated
+  // Init SQLite + hydrate + load games when user is authenticated
   $effect(() => {
     if (authState.user) {
-      loadGames(authState.user.id);
+      const userId = authState.user.id;
+      (async () => {
+        await getLocalDb();
+        await hydrateIfNeeded(userId);
+        await loadGames(userId);
+        initSyncService();
+      })();
     }
   });
 </script>

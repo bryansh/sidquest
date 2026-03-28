@@ -1,6 +1,6 @@
 <script lang="ts">
   import { Dialog } from 'bits-ui';
-  import { searchNotes, type SearchResult } from '$lib/db/queries/search';
+  import { searchNotes, type SearchResult } from '$lib/db/local/queries/search';
   import { gameState } from '$lib/state/gameState.svelte';
   import { authState } from '$lib/auth/authState.svelte';
   import { noteState, selectEntity } from '$lib/state/noteState.svelte';
