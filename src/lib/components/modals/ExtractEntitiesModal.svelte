@@ -3,7 +3,8 @@
   import { invoke } from '@tauri-apps/api/core';
   import { gameState, createEntity, createEntityType } from '$lib/state/gameState.svelte';
   import { createNote } from '$lib/state/noteState.svelte';
-  import { sessionState } from '$lib/state/sessionState.svelte';
+  import { sessionState, updateSessionNoteContent } from '$lib/state/sessionState.svelte';
+  import { insertWikilinksInDoc, type WikilinkTarget } from '$lib/tiptapTransform';
   import { authState } from '$lib/auth/authState.svelte';
   import { serialize } from '../editor/cleanupRoundtrip';
 
@@ -101,13 +102,18 @@
     }
   }
 
+  function buildDescriptionDoc(description: string, wikilinkMap: Map<string, WikilinkTarget>): any {
+    const plainDoc = { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: description }] }] };
+    return wikilinkMap.size > 0 ? insertWikilinksInDoc(plainDoc, wikilinkMap) : plainDoc;
+  }
+
   async function createEntities() {
     if (!authState.user || !gameState.activeGameId) return;
     status = 'creating';
     let created = 0;
 
-    // Create entities and collect name → entityId map
-    const entityMap = new Map<string, string>();
+    // First pass: create entities and collect name → target map
+    const wikilinkMap = new Map<string, WikilinkTarget>();
 
     const sessionName = sessionState.sessions.find(s => s.id === sessionState.activeSessionId)?.name ?? 'Session';
 
@@ -115,35 +121,53 @@
       if (!s.name.trim()) continue;
       try {
         if (s.existingEntityId) {
-          // Append a new note to the existing entity
-          entityMap.set(s.name, s.existingEntityId);
-          const noteTitle = `${sessionName}: ${s.name}`;
-          await createNote(authState.user.id, gameState.activeGameId, s.existingEntityId, noteTitle, {
-            content: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: s.description }] }] },
-            activate: false,
-          });
-          created++;
+          wikilinkMap.set(s.name, { entityId: s.existingEntityId, label: s.name });
         } else {
-          // Create a new entity + note
           const entity = await createEntity(authState.user.id, s.typeId, s.name, { summary: s.label });
           if (entity) {
-            entityMap.set(s.name, entity.id);
-            await createNote(authState.user.id, gameState.activeGameId, entity.id, s.name, {
-              content: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: s.description }] }] },
-              activate: false,
-            });
-            created++;
+            wikilinkMap.set(s.name, { entityId: entity.id, label: s.name });
           }
         }
       } catch (e) {
-        console.error('[Extract] Failed to process entity:', s.name, e);
+        console.error('[Extract] Failed to create entity:', s.name, e);
       }
     }
 
-    // Tell the editor to wikilink these entity names
-    if (entityMap.size > 0) {
+    // Second pass: create notes with cross-wikilinks
+    for (const s of suggestions) {
+      if (!s.name.trim() || !s.description.trim()) continue;
+      const target = wikilinkMap.get(s.name);
+      if (!target) continue;
+      try {
+        const noteTitle = s.existingEntityId ? `${sessionName}: ${s.name}` : s.name;
+        const content = buildDescriptionDoc(s.description, wikilinkMap);
+        await createNote(authState.user.id, gameState.activeGameId, target.entityId, noteTitle, {
+          content,
+          activate: false,
+        });
+        created++;
+      } catch (e) {
+        console.error('[Extract] Failed to create note for:', s.name, e);
+      }
+    }
+
+    // Third pass: wikilink all session notes
+    if (wikilinkMap.size > 0) {
+      for (const note of sessionState.sessionNotes) {
+        if (!note.content) continue;
+        try {
+          const updated = insertWikilinksInDoc(note.content, wikilinkMap);
+          if (JSON.stringify(updated) !== JSON.stringify(note.content)) {
+            await updateSessionNoteContent(note.id, updated);
+          }
+        } catch (e) {
+          console.error('[Extract] Failed to wikilink session note:', e);
+        }
+      }
+
+      // Also update the active editor if mounted
       window.dispatchEvent(new CustomEvent('wikilink-entities', {
-        detail: Object.fromEntries(entityMap),
+        detail: Object.fromEntries([...wikilinkMap].map(([k, v]) => [k, v.entityId])),
       }));
     }
 
