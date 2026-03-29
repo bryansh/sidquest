@@ -87,15 +87,17 @@ RULES:
 - Include unnamed characters by their role (e.g., "Barkeep", "Guard Captain")
 - Include currency and treasure as items
 - Be thorough — extract every person, place, thing, and organization mentioned
-- For each entity, write a DETAILED description (2-4 sentences) that captures everything the notes say about them: who they are, what they did, their relationships to other entities, their goals, and any relevant context. Do NOT write just a label like "Evil Wizard" — write a full description like "An evil wizard seeking the Rubies of Power to destroy the world. The party must defeat him to save Elara's family."
+- For each entity, provide TWO fields:
+  - "label": a short 2-5 word label (e.g., "Evil wizard", "Abandoned fortress", "Enchanted dagger")
+  - "description": a DETAILED 2-4 sentence description capturing everything the notes say — relationships, goals, actions, and context
 - Return ONLY valid JSON with this exact structure, no other text:
 
 {{"categories": {{{categories_template}}}}}
 
-Where each category contains an array of objects with "name" and "description" fields."#,
+Where each category contains an array of objects with "name", "label", and "description" fields."#,
         types_list = types_list,
         categories_template = entity_types.iter()
-            .map(|t| format!("\"{}\": [{{\"name\": \"...\", \"description\": \"2-4 sentence description with full context\"}}]", t))
+            .map(|t| format!("\"{}\": [{{\"name\": \"...\", \"label\": \"short label\", \"description\": \"2-4 sentence description\"}}]", t))
             .collect::<Vec<_>>()
             .join(", ")
     )

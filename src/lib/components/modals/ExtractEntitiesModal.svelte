@@ -14,7 +14,8 @@
 
   interface EntitySuggestion {
     name: string;
-    summary: string;
+    label: string;
+    description: string;
     typeName: string;
     typeId: string;
   }
@@ -82,7 +83,8 @@
           if (exists) continue;
           items.push({
             name: e.name || '',
-            summary: e.description || e.summary || '',
+            label: e.label || e.summary || '',
+            description: e.description || '',
             typeName: entityType.name,
             typeId: entityType.id,
           });
@@ -106,11 +108,10 @@
 
     for (const s of suggestions) {
       try {
-        const entity = await createEntity(authState.user.id, s.typeId, s.name, { summary: s.summary });
+        const entity = await createEntity(authState.user.id, s.typeId, s.name, { summary: s.label });
         if (entity) {
-          // Create a note with the summary
           await createNote(authState.user.id, gameState.activeGameId, entity.id, s.name, {
-            content: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: s.summary }] }] },
+            content: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: s.description }] }] },
             activate: false,
           });
           created++;
@@ -173,9 +174,15 @@
                   class="text-xs text-[var(--color-text-muted)] hover:text-red-400 px-1"
                 >&times;</button>
               </div>
+              <input
+                type="text"
+                bind:value={suggestion.label}
+                placeholder="Short label..."
+                class="w-full text-[11px] bg-transparent border-b border-transparent focus:border-[var(--color-accent)] outline-none text-[var(--color-text-muted)] px-0 py-0.5 italic"
+              />
               <textarea
-                bind:value={suggestion.summary}
-                placeholder="Description..."
+                bind:value={suggestion.description}
+                placeholder="Detailed description..."
                 rows="2"
                 class="w-full text-xs bg-transparent border border-transparent focus:border-[var(--color-accent)] outline-none text-[var(--color-text-muted)] px-0 py-0.5 resize-none"
               ></textarea>
