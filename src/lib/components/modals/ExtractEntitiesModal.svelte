@@ -18,6 +18,7 @@
     description: string;
     typeName: string;
     typeId: string;
+    existingEntityId: string | null; // non-null if updating an existing entity
   }
 
   let status = $state<'extracting' | 'reviewing' | 'creating' | 'error'>('extracting');
@@ -76,24 +77,23 @@
         );
         if (!entityType || !Array.isArray(entities)) continue;
         for (const e of entities as any[]) {
-          // Skip if entity already exists
-          const exists = gameState.entities.some(
-            existing => existing.name.toLowerCase() === (e.name || '').toLowerCase() && existing.entityTypeId === entityType.id
+          const existing = gameState.entities.find(
+            ex => ex.name.toLowerCase() === (e.name || '').toLowerCase() && ex.entityTypeId === entityType.id
           );
-          if (exists) continue;
           items.push({
             name: e.name || '',
             label: e.label || e.summary || '',
             description: e.description || '',
             typeName: entityType.name,
             typeId: entityType.id,
+            existingEntityId: existing?.id ?? null,
           });
         }
       }
 
       suggestions = items;
       status = items.length > 0 ? 'reviewing' : 'error';
-      if (items.length === 0) errorMsg = 'No new entities found in session notes.';
+      if (items.length === 0) errorMsg = 'No entities found in session notes.';
     } catch (e: any) {
       console.error('[Extract] Error:', e);
       errorMsg = e.message ?? 'Extraction failed';
@@ -109,20 +109,34 @@
     // Create entities and collect name → entityId map
     const entityMap = new Map<string, string>();
 
+    const sessionName = sessionState.sessions.find(s => s.id === sessionState.activeSessionId)?.name ?? 'Session';
+
     for (const s of suggestions) {
       if (!s.name.trim()) continue;
       try {
-        const entity = await createEntity(authState.user.id, s.typeId, s.name, { summary: s.label });
-        if (entity) {
-          entityMap.set(s.name, entity.id);
-          await createNote(authState.user.id, gameState.activeGameId, entity.id, s.name, {
+        if (s.existingEntityId) {
+          // Append a new note to the existing entity
+          entityMap.set(s.name, s.existingEntityId);
+          const noteTitle = `${sessionName}: ${s.name}`;
+          await createNote(authState.user.id, gameState.activeGameId, s.existingEntityId, noteTitle, {
             content: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: s.description }] }] },
             activate: false,
           });
           created++;
+        } else {
+          // Create a new entity + note
+          const entity = await createEntity(authState.user.id, s.typeId, s.name, { summary: s.label });
+          if (entity) {
+            entityMap.set(s.name, entity.id);
+            await createNote(authState.user.id, gameState.activeGameId, entity.id, s.name, {
+              content: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: s.description }] }] },
+              activate: false,
+            });
+            created++;
+          }
         }
       } catch (e) {
-        console.error('[Extract] Failed to create entity:', s.name, e);
+        console.error('[Extract] Failed to process entity:', s.name, e);
       }
     }
 
@@ -161,8 +175,13 @@
 
         <div class="flex-1 overflow-y-auto space-y-3 mb-3">
           {#each suggestions as suggestion, i}
-            <div class="px-3 py-3 rounded border border-[var(--color-border)] bg-[var(--color-bg)]">
+            <div class="px-3 py-3 rounded border {suggestion.existingEntityId ? 'border-[var(--color-accent)]/40' : 'border-[var(--color-border)]'} bg-[var(--color-bg)]">
               <div class="flex items-center gap-2 mb-2">
+                {#if suggestion.existingEntityId}
+                  <span class="text-[10px] px-1.5 py-0.5 rounded bg-[var(--color-accent)]/20 text-[var(--color-accent)] shrink-0">Update</span>
+                {:else}
+                  <span class="text-[10px] px-1.5 py-0.5 rounded bg-green-500/20 text-green-400 shrink-0">New</span>
+                {/if}
                 <input
                   type="text"
                   bind:value={suggestion.name}
@@ -206,7 +225,7 @@
             onclick={() => {
               const defaultType = entityTypes[0];
               if (!defaultType) return;
-              suggestions = [...suggestions, { name: '', label: '', description: '', typeName: defaultType.name, typeId: defaultType.id }];
+              suggestions = [...suggestions, { name: '', label: '', description: '', typeName: defaultType.name, typeId: defaultType.id, existingEntityId: null }];
             }}
             disabled={entityTypes.length === 0}
             class="w-full text-left px-3 py-2 text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] rounded border border-dashed border-[var(--color-border)] transition-colors"
