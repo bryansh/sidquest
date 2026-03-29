@@ -17,7 +17,6 @@
     summary: string;
     typeName: string;
     typeId: string;
-    checked: boolean;
   }
 
   let status = $state<'extracting' | 'reviewing' | 'creating' | 'error'>('extracting');
@@ -86,7 +85,6 @@
             summary: e.summary || '',
             typeName: entityType.name,
             typeId: entityType.id,
-            checked: true,
           });
         }
       }
@@ -106,8 +104,7 @@
     status = 'creating';
     let created = 0;
 
-    const selected = suggestions.filter(s => s.checked);
-    for (const s of selected) {
+    for (const s of suggestions) {
       try {
         const entity = await createEntity(authState.user.id, s.typeId, s.name, { summary: s.summary });
         if (entity) {
@@ -126,7 +123,7 @@
     onExtracted(created);
   }
 
-  const checkedCount = $derived(suggestions.filter(s => s.checked).length);
+
 </script>
 
 <Dialog.Root open onOpenChange={(open) => { if (!open) onClose(); }}>
@@ -147,33 +144,55 @@
         </div>
 
       {:else if status === 'reviewing'}
-        <p class="text-xs text-[var(--color-text-muted)] mb-3">Found {suggestions.length} new entities. Uncheck any you don't want to create.</p>
+        <p class="text-xs text-[var(--color-text-muted)] mb-3">Found {suggestions.length} new entities. Edit names, summaries, or types. Remove any you don't want.</p>
 
-        <div class="flex-1 overflow-y-auto space-y-1 mb-3">
+        <div class="flex-1 overflow-y-auto space-y-2 mb-3">
           {#each suggestions as suggestion, i}
-            <label class="flex items-start gap-2 px-2 py-1.5 rounded hover:bg-[var(--color-surface-hover)] cursor-pointer">
-              <input type="checkbox" bind:checked={suggestion.checked} class="mt-0.5" />
-              <div class="flex-1 min-w-0">
-                <div class="flex items-center gap-2">
-                  <span class="text-sm font-medium text-[var(--color-text)]">{suggestion.name}</span>
-                  <span class="text-[10px] px-1.5 py-0.5 rounded bg-[var(--color-surface-hover)] text-[var(--color-text-muted)]">{suggestion.typeName}</span>
-                </div>
-                <p class="text-xs text-[var(--color-text-muted)] truncate">{suggestion.summary}</p>
+            <div class="px-3 py-2 rounded border border-[var(--color-border)] bg-[var(--color-bg)]">
+              <div class="flex items-center gap-2 mb-1.5">
+                <input
+                  type="text"
+                  bind:value={suggestion.name}
+                  class="flex-1 text-sm font-medium bg-transparent border-b border-transparent focus:border-[var(--color-accent)] outline-none text-[var(--color-text)] px-0 py-0.5"
+                />
+                <select
+                  bind:value={suggestion.typeId}
+                  onchange={() => {
+                    const et = entityTypes.find(t => t.id === suggestion.typeId);
+                    if (et) suggestion.typeName = et.name;
+                  }}
+                  class="text-[11px] px-1.5 py-0.5 rounded bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-text-muted)] outline-none"
+                >
+                  {#each entityTypes as et}
+                    <option value={et.id}>{et.icon ?? ''} {et.name}</option>
+                  {/each}
+                </select>
+                <button
+                  onclick={() => suggestions = suggestions.filter((_, idx) => idx !== i)}
+                  title="Remove"
+                  class="text-xs text-[var(--color-text-muted)] hover:text-red-400 px-1"
+                >&times;</button>
               </div>
-            </label>
+              <input
+                type="text"
+                bind:value={suggestion.summary}
+                placeholder="Summary..."
+                class="w-full text-xs bg-transparent border-b border-transparent focus:border-[var(--color-accent)] outline-none text-[var(--color-text-muted)] px-0 py-0.5"
+              />
+            </div>
           {/each}
         </div>
 
         <div class="flex justify-between items-center pt-3 border-t border-[var(--color-border)]">
-          <span class="text-xs text-[var(--color-text-muted)]">{checkedCount} selected</span>
+          <span class="text-xs text-[var(--color-text-muted)]">{suggestions.length} entities</span>
           <div class="flex gap-2">
-            <button onclick={onClose} class="px-3 py-1.5 text-sm rounded text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] transition-colors">Cancel</button>
+            <button onclick={onClose} class="px-3 py-1.5 text-sm rounded text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] transition-colors">Reject</button>
             <button
               onclick={createEntities}
-              disabled={checkedCount === 0}
+              disabled={suggestions.length === 0}
               class="px-3 py-1.5 text-sm rounded bg-[var(--color-accent)] hover:bg-[var(--color-accent-hover)] text-white transition-colors disabled:opacity-50"
             >
-              Create {checkedCount} Entities
+              Accept ({suggestions.length})
             </button>
           </div>
         </div>
