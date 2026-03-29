@@ -3,7 +3,7 @@
   import { invoke } from '@tauri-apps/api/core';
   import { gameState, createEntity, createEntityType } from '$lib/state/gameState.svelte';
   import { createNote } from '$lib/state/noteState.svelte';
-  import { sessionState } from '$lib/state/sessionState.svelte';
+  import { sessionState, updateSessionNoteContent } from '$lib/state/sessionState.svelte';
   import { authState } from '$lib/auth/authState.svelte';
   import { serialize } from '../editor/cleanupRoundtrip';
 
@@ -101,15 +101,86 @@
     }
   }
 
+  function insertWikilinks(doc: any, entityMap: Map<string, string>): any {
+    if (!doc || !doc.content) return doc;
+    return {
+      ...doc,
+      content: doc.content.map((node: any) => insertWikilinksInNode(node, entityMap)),
+    };
+  }
+
+  function insertWikilinksInNode(node: any, entityMap: Map<string, string>): any {
+    // Don't process wikilink nodes themselves
+    if (node.type === 'mention') return node;
+
+    // Process text nodes: split on entity names and insert wikilinks
+    if (node.type === 'text' && node.text) {
+      const parts: any[] = [];
+      let remaining = node.text;
+
+      for (const [name, entityId] of entityMap) {
+        const regex = new RegExp(`\\b${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
+        const newParts: any[] = [];
+        for (const part of remaining ? [remaining] : []) {
+          let lastIdx = 0;
+          let match;
+          regex.lastIndex = 0;
+          while ((match = regex.exec(part)) !== null) {
+            if (match.index > lastIdx) {
+              newParts.push({ type: 'text', text: part.slice(lastIdx, match.index), ...(node.marks ? { marks: node.marks } : {}) });
+            }
+            newParts.push({
+              type: 'mention',
+              attrs: { id: null, noteId: null, entityId, label: name },
+            });
+            lastIdx = match.index + match[0].length;
+          }
+          if (lastIdx < part.length) {
+            newParts.push({ type: 'text', text: part.slice(lastIdx), ...(node.marks ? { marks: node.marks } : {}) });
+          }
+          if (newParts.length === 0) {
+            newParts.push({ type: 'text', text: part, ...(node.marks ? { marks: node.marks } : {}) });
+          }
+        }
+        // For simplicity, only process the first entity name per text node
+        if (newParts.length > 1) return newParts;
+        remaining = newParts.length > 0 && newParts[0].text ? newParts[0].text : remaining;
+      }
+
+      return node;
+    }
+
+    // Recurse into content nodes
+    if (node.content) {
+      const newContent: any[] = [];
+      for (const child of node.content) {
+        const result = insertWikilinksInNode(child, entityMap);
+        if (Array.isArray(result)) {
+          newContent.push(...result);
+        } else {
+          newContent.push(result);
+        }
+      }
+      return { ...node, content: newContent };
+    }
+
+    return node;
+  }
+
   async function createEntities() {
     if (!authState.user || !gameState.activeGameId) return;
     status = 'creating';
     let created = 0;
 
+    // Create entities and collect name → entityId map
+    const entityMap = new Map<string, string>();
+
     for (const s of suggestions) {
+      if (!s.name.trim()) continue;
       try {
         const entity = await createEntity(authState.user.id, s.typeId, s.name, { summary: s.label });
         if (entity) {
+          entityMap.set(s.name, entity.id);
           await createNote(authState.user.id, gameState.activeGameId, entity.id, s.name, {
             content: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: s.description }] }] },
             activate: false,
@@ -118,6 +189,17 @@
         }
       } catch (e) {
         console.error('[Extract] Failed to create entity:', s.name, e);
+      }
+    }
+
+    // Tag entity names in session notes with wikilinks
+    if (entityMap.size > 0) {
+      for (const note of sessionState.sessionNotes) {
+        if (!note.content) continue;
+        const updated = insertWikilinks(note.content, entityMap);
+        if (JSON.stringify(updated) !== JSON.stringify(note.content)) {
+          await updateSessionNoteContent(note.id, updated);
+        }
       }
     }
 
