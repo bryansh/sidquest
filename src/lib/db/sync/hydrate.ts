@@ -1,6 +1,6 @@
 import { getLocalDb } from '../local/sqlite';
 import { db } from '../client';
-import { games, entityTypes, entities, notes, noteLinks } from '../schema';
+import { games, entityTypes, entities, notes, noteLinks, sessions, sessionNotes } from '../schema';
 
 export async function hydrateIfNeeded(userId: string): Promise<boolean> {
   const localDb = await getLocalDb();
@@ -55,6 +55,25 @@ export async function hydrateIfNeeded(userId: string): Promise<boolean> {
       await localDb.execute(
         'INSERT OR IGNORE INTO notes (id, entity_id, game_id, user_id, title, content, sort_order, created_at, updated_at, _dirty) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)',
         [n.id, n.entityId, n.gameId, n.userId, n.title, contentJson, n.sortOrder ?? 0, n.createdAt?.toISOString() ?? null, n.updatedAt?.toISOString() ?? null]
+      );
+    }
+
+    // Insert sessions
+    const remoteSessions = await db.select().from(sessions);
+    for (const s of remoteSessions) {
+      await localDb.execute(
+        'INSERT OR IGNORE INTO sessions (id, game_id, user_id, name, session_date, sort_order, created_at, updated_at, _dirty) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)',
+        [s.id, s.gameId, s.userId, s.name, s.sessionDate, s.sortOrder ?? 0, s.createdAt?.toISOString() ?? null, s.updatedAt?.toISOString() ?? new Date().toISOString()]
+      );
+    }
+
+    // Insert session notes
+    const remoteSessionNotes = await db.select().from(sessionNotes);
+    for (const sn of remoteSessionNotes) {
+      const contentJson = sn.content ? JSON.stringify(sn.content) : null;
+      await localDb.execute(
+        'INSERT OR IGNORE INTO session_notes (id, session_id, game_id, user_id, title, content, sort_order, created_at, updated_at, _dirty) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)',
+        [sn.id, sn.sessionId, sn.gameId, sn.userId, sn.title, contentJson, sn.sortOrder ?? 0, sn.createdAt?.toISOString() ?? null, sn.updatedAt?.toISOString() ?? null]
       );
     }
 

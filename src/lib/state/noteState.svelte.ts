@@ -1,6 +1,7 @@
 import * as noteQueries from '$lib/db/local/queries/notes';
 import { syncNoteLinks } from '$lib/db/local/queries/links';
 import { extractWikilinkIds } from '$lib/wikilinks';
+import { clearActiveSession } from '$lib/state/sessionState.svelte';
 
 export interface Note {
   id: string;
@@ -44,6 +45,7 @@ export async function restoreLastNote(gameId: string) {
 }
 
 export async function selectEntity(entityId: string) {
+  clearActiveSession();
   noteState.activeEntityId = entityId;
   const rows = await noteQueries.getNotes(entityId);
   noteState.notes = rows.map(r => ({

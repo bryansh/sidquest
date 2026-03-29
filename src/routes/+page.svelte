@@ -3,6 +3,7 @@
   import { authState, checkSession } from '$lib/auth/authState.svelte';
   import { loadGames, createGame, createEntityType, createEntity, deleteEntity, deleteGameById, renameEntity, renameEntityType, deleteEntityTypeById, reorderEntityTypes, reorderEntities, gameState } from '$lib/state/gameState.svelte';
   import { selectEntity } from '$lib/state/noteState.svelte';
+  import { selectSession, createSession, deleteSession, renameSession, sessionState } from '$lib/state/sessionState.svelte';
   import { loadSettings, settings, updateSettings } from '$lib/state/settingsState.svelte';
   import { uiState } from '$lib/state/uiState.svelte';
   import { getLocalDb } from '$lib/db/local/sqlite';
@@ -27,6 +28,7 @@
   let confirmDeleteEntityId = $state<string | null>(null);
   let confirmDeleteGameId = $state<string | null>(null);
   let confirmDeleteEntityTypeId = $state<string | null>(null);
+  let confirmDeleteSessionId = $state<string | null>(null);
   let showSettings = $state(false);
   let resizing = $state(false);
 
@@ -110,6 +112,10 @@
         onRenameEntityType={(id, name, icon) => renameEntityType(id, name, icon)}
         onReorderEntityTypes={(ids) => reorderEntityTypes(ids)}
         onReorderEntities={(ids) => reorderEntities(ids)}
+        onSelectSession={(id) => selectSession(id)}
+        onNewSession={async () => { if (authState.user && gameState.activeGameId) await createSession(authState.user.id, gameState.activeGameId); }}
+        onDeleteSession={(id) => confirmDeleteSessionId = id}
+        onRenameSession={(id, name) => renameSession(id, name)}
       />
       <!-- svelte-ignore a11y_no_static_element_interactions -->
       <div
@@ -123,8 +129,8 @@
   {#if showNewGame}
     <NewGameModal
       onClose={() => showNewGame = false}
-      onCreate={async (name, description) => {
-        await createGame(authState.user!.id, name, description);
+      onCreate={async (name, description, template) => {
+        await createGame(authState.user!.id, name, description, template);
         showNewGame = false;
       }}
     />
@@ -178,6 +184,16 @@
 
   {#if showSettings}
     <SettingsModal onClose={() => showSettings = false} />
+  {/if}
+
+  {#if confirmDeleteSessionId}
+    {@const sessionToDelete = sessionState.sessions.find(s => s.id === confirmDeleteSessionId)}
+    <ConfirmDeleteModal
+      title="Delete Session"
+      message="Are you sure you want to delete &quot;{sessionToDelete?.name ?? 'this session'}&quot; and all its notes? This cannot be undone."
+      onClose={() => confirmDeleteSessionId = null}
+      onConfirm={async () => { await deleteSession(confirmDeleteSessionId!); confirmDeleteSessionId = null; }}
+    />
   {/if}
 
   {#if confirmDeleteGameId}

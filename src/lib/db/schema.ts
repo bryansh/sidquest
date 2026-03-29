@@ -45,6 +45,29 @@ export const notes = pgTable('notes', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
 });
 
+export const sessions = pgTable('sessions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  gameId: uuid('game_id').references(() => games.id, { onDelete: 'cascade' }).notNull(),
+  userId: text('user_id').notNull(),
+  name: text('name').notNull(),
+  sessionDate: text('session_date'),
+  sortOrder: integer('sort_order').default(0),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+});
+
+export const sessionNotes = pgTable('session_notes', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  sessionId: uuid('session_id').references(() => sessions.id, { onDelete: 'cascade' }).notNull(),
+  gameId: uuid('game_id').references(() => games.id, { onDelete: 'cascade' }).notNull(),
+  userId: text('user_id').notNull(),
+  title: text('title').notNull(),
+  content: jsonb('content'),
+  sortOrder: integer('sort_order').default(0),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+});
+
 export const noteLinks = pgTable('note_links', {
   id: uuid('id').primaryKey().defaultRandom(),
   sourceNoteId: uuid('source_note_id').references(() => notes.id, { onDelete: 'cascade' }).notNull(),

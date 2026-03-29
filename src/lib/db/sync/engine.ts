@@ -1,7 +1,7 @@
 import type Database from '@tauri-apps/plugin-sql';
 import { getLocalDb } from '../local/sqlite';
 import { db } from '../client';
-import { games, entityTypes, entities, notes, noteLinks } from '../schema';
+import { games, entityTypes, entities, notes, noteLinks, sessions, sessionNotes } from '../schema';
 import { eq, gt } from 'drizzle-orm';
 
 interface DirtyRow {
@@ -14,12 +14,14 @@ export async function pushChanges(): Promise<number> {
   const localDb = await getLocalDb();
   let pushed = 0;
 
-  // Push in FK order: games → entityTypes → entities → notes → noteLinks
+  // Push in FK order: games → entityTypes → entities → notes → noteLinks → sessions → sessionNotes
   pushed += await pushGames(localDb);
   pushed += await pushEntityTypes(localDb);
   pushed += await pushEntities(localDb);
   pushed += await pushNotes(localDb);
   pushed += await pushNoteLinks(localDb);
+  pushed += await pushSessions(localDb);
+  pushed += await pushSessionNotes(localDb);
 
   return pushed;
 }
@@ -211,6 +213,55 @@ async function pushNoteLinks(localDb: Database): Promise<number> {
   return rows.length;
 }
 
+async function pushSessions(localDb: Database): Promise<number> {
+  const rows = await localDb.select<DirtyRow[]>('SELECT * FROM sessions WHERE _dirty = 1');
+  for (const row of rows) {
+    try {
+      if (row._deleted) {
+        await db.delete(sessions).where(eq(sessions.id, row.id));
+        await localDb.execute('DELETE FROM sessions WHERE id = ?', [row.id]);
+      } else {
+        await db.insert(sessions).values({
+          id: row.id, gameId: row.game_id, userId: row.user_id, name: row.name,
+          sessionDate: row.session_date, sortOrder: row.sort_order,
+          createdAt: row.created_at ? new Date(row.created_at) : new Date(),
+          updatedAt: row.updated_at ? new Date(row.updated_at) : new Date(),
+        }).onConflictDoUpdate({
+          target: sessions.id,
+          set: { name: row.name, sessionDate: row.session_date, sortOrder: row.sort_order, updatedAt: row.updated_at ? new Date(row.updated_at) : new Date() },
+        });
+        await localDb.execute('UPDATE sessions SET _dirty = 0 WHERE id = ?', [row.id]);
+      }
+    } catch (e) { console.error('[Sync] Failed to push session', row.id, e); }
+  }
+  return rows.length;
+}
+
+async function pushSessionNotes(localDb: Database): Promise<number> {
+  const rows = await localDb.select<DirtyRow[]>('SELECT * FROM session_notes WHERE _dirty = 1');
+  for (const row of rows) {
+    try {
+      if (row._deleted) {
+        await db.delete(sessionNotes).where(eq(sessionNotes.id, row.id));
+        await localDb.execute('DELETE FROM session_notes WHERE id = ?', [row.id]);
+      } else {
+        const content = row.content ? JSON.parse(row.content) : null;
+        await db.insert(sessionNotes).values({
+          id: row.id, sessionId: row.session_id, gameId: row.game_id, userId: row.user_id,
+          title: row.title, content, sortOrder: row.sort_order,
+          createdAt: row.created_at ? new Date(row.created_at) : new Date(),
+          updatedAt: row.updated_at ? new Date(row.updated_at) : new Date(),
+        }).onConflictDoUpdate({
+          target: sessionNotes.id,
+          set: { title: row.title, content, sortOrder: row.sort_order, updatedAt: row.updated_at ? new Date(row.updated_at) : new Date() },
+        });
+        await localDb.execute('UPDATE session_notes SET _dirty = 0 WHERE id = ?', [row.id]);
+      }
+    } catch (e) { console.error('[Sync] Failed to push session note', row.id, e); }
+  }
+  return rows.length;
+}
+
 export async function pullChanges(): Promise<number> {
   const localDb = await getLocalDb();
   let pulled = 0;
@@ -252,6 +303,19 @@ export async function pullChanges(): Promise<number> {
     r.updatedAt?.toISOString() ?? new Date().toISOString(),
   ], 'INSERT OR REPLACE INTO note_links (id, source_note_id, target_note_id, game_id, user_id, created_at, updated_at, _dirty) VALUES (?, ?, ?, ?, ?, ?, ?, 0)');
 
+  pulled += await pullTable(localDb, 'sessions', sessions, lastSync, (r) => [
+    r.id, r.gameId, r.userId, r.name, r.sessionDate, r.sortOrder ?? 0,
+    r.createdAt?.toISOString() ?? null,
+    r.updatedAt?.toISOString() ?? new Date().toISOString(),
+  ], 'INSERT OR REPLACE INTO sessions (id, game_id, user_id, name, session_date, sort_order, created_at, updated_at, _dirty) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)');
+
+  pulled += await pullTable(localDb, 'session_notes', sessionNotes, lastSync, (r) => [
+    r.id, r.sessionId, r.gameId, r.userId, r.title,
+    r.content ? JSON.stringify(r.content) : null, r.sortOrder ?? 0,
+    r.createdAt?.toISOString() ?? null,
+    r.updatedAt?.toISOString() ?? null,
+  ], 'INSERT OR REPLACE INTO session_notes (id, session_id, game_id, user_id, title, content, sort_order, created_at, updated_at, _dirty) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)');
+
   // Update lastSyncAt
   const now = new Date().toISOString();
   await localDb.execute(
@@ -284,7 +348,7 @@ async function pullTable(localDb: Database, tableName: string, table: any, lastS
 
 export async function getPendingCount(): Promise<number> {
   const localDb = await getLocalDb();
-  const tables = ['games', 'entity_types', 'entities', 'notes', 'note_links'];
+  const tables = ['games', 'entity_types', 'entities', 'notes', 'note_links', 'sessions', 'session_notes'];
   let total = 0;
   for (const t of tables) {
     const rows = await localDb.select<{ cnt: number }[]>(

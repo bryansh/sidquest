@@ -1,6 +1,6 @@
 import type Database from '@tauri-apps/plugin-sql';
 
-const CURRENT_VERSION = 1;
+const CURRENT_VERSION = 2;
 
 export async function runMigrations(db: Database) {
   // Meta table for tracking schema version and sync state
@@ -18,6 +18,9 @@ export async function runMigrations(db: Database) {
 
   if (currentVersion < 1) {
     await migrateV1(db);
+  }
+  if (currentVersion < 2) {
+    await migrateV2(db);
   }
 
   if (currentVersion < CURRENT_VERSION) {
@@ -119,4 +122,43 @@ async function migrateV1(db: Database) {
   await db.execute('CREATE INDEX IF NOT EXISTS idx_dirty_entities ON entities(_dirty) WHERE _dirty = 1');
   await db.execute('CREATE INDEX IF NOT EXISTS idx_dirty_notes ON notes(_dirty) WHERE _dirty = 1');
   await db.execute('CREATE INDEX IF NOT EXISTS idx_dirty_note_links ON note_links(_dirty) WHERE _dirty = 1');
+}
+
+async function migrateV2(db: Database) {
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS sessions (
+      id TEXT PRIMARY KEY,
+      game_id TEXT NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+      user_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      session_date TEXT,
+      sort_order INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now')),
+      _dirty INTEGER DEFAULT 0,
+      _deleted INTEGER DEFAULT 0
+    )
+  `);
+
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS session_notes (
+      id TEXT PRIMARY KEY,
+      session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+      game_id TEXT NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+      user_id TEXT NOT NULL,
+      title TEXT NOT NULL,
+      content TEXT,
+      sort_order INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now')),
+      _dirty INTEGER DEFAULT 0,
+      _deleted INTEGER DEFAULT 0
+    )
+  `);
+
+  await db.execute('CREATE INDEX IF NOT EXISTS idx_sessions_game ON sessions(game_id)');
+  await db.execute('CREATE INDEX IF NOT EXISTS idx_session_notes_session ON session_notes(session_id)');
+  await db.execute('CREATE INDEX IF NOT EXISTS idx_session_notes_game ON session_notes(game_id)');
+  await db.execute('CREATE INDEX IF NOT EXISTS idx_dirty_sessions ON sessions(_dirty) WHERE _dirty = 1');
+  await db.execute('CREATE INDEX IF NOT EXISTS idx_dirty_session_notes ON session_notes(_dirty) WHERE _dirty = 1');
 }

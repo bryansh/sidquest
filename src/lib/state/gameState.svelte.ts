@@ -1,6 +1,8 @@
 import * as gameQueries from '$lib/db/local/queries/games';
 import * as entityQueries from '$lib/db/local/queries/entities';
+import type { GameTemplate } from '$lib/gameTemplates';
 import { restoreLastNote, loadAllGameNotes, noteState } from '$lib/state/noteState.svelte';
+import { loadSessions, clearActiveSession, sessionState } from '$lib/state/sessionState.svelte';
 
 export interface Game {
   id: string;
@@ -65,6 +67,7 @@ async function loadGameData(gameId: string) {
     entityQueries.getEntityTypes(gameId),
     entityQueries.getEntities(gameId),
     loadAllGameNotes(gameId),
+    loadSessions(gameId),
   ]);
   gameState.entityTypes = types.map(r => ({
     id: r.id,
@@ -85,10 +88,31 @@ async function loadGameData(gameId: string) {
   }));
 }
 
-export async function createGame(userId: string, name: string, description?: string) {
+export async function createGame(userId: string, name: string, description?: string, template?: GameTemplate) {
   const row = await gameQueries.createGame(userId, name, description);
   gameState.games = [...gameState.games, { id: row.id, name: row.name, description: row.description }];
   await selectGame(row.id);
+
+  // Create entity types from template
+  if (template?.types.length) {
+    for (let i = 0; i < template.types.length; i++) {
+      const t = template.types[i];
+      const et = await entityQueries.createEntityType(userId, row.id, t.name, {
+        icon: t.icon,
+        color: t.color,
+        sortOrder: i,
+      });
+      gameState.entityTypes = [...gameState.entityTypes, {
+        id: et.id,
+        gameId: et.gameId,
+        name: et.name,
+        color: et.color ?? null,
+        icon: et.icon ?? null,
+        sortOrder: et.sortOrder ?? i,
+      }];
+    }
+  }
+
   return row;
 }
 
@@ -188,6 +212,8 @@ export async function deleteGameById(gameId: string) {
     noteState.activeNoteId = null;
     noteState.notes = [];
     noteState.allGameNotes = [];
+    clearActiveSession();
+    sessionState.sessions = [];
     // Auto-select next game if available
     if (gameState.games.length > 0) {
       await selectGame(gameState.games[0].id);
