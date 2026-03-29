@@ -21,6 +21,20 @@
     [...entityTypes].sort((a, b) => a.sortOrder - b.sortOrder)
   );
 
+  // Track which types have been manually toggled — types not in this set use auto-open logic
+  let manuallyToggled = $state(new Set<string>());
+  let openState = $state<Record<string, boolean>>({});
+
+  function isOpen(typeId: string, hasActiveEntity: boolean): boolean {
+    if (manuallyToggled.has(typeId)) return openState[typeId] ?? false;
+    return hasActiveEntity;
+  }
+
+  function handleToggle(typeId: string, open: boolean) {
+    manuallyToggled.add(typeId);
+    openState[typeId] = open;
+  }
+
   let editingTypeId = $state<string | null>(null);
   let editName = $state('');
   let editIcon = $state('');
@@ -211,7 +225,10 @@
   {#each sortedTypes as entityType}
     {@const typeEntities = entities.filter(e => e.entityTypeId === entityType.id).sort((a, b) => a.sortOrder - b.sortOrder)}
     <div class="mb-1 {dragging && dragId === entityType.id ? 'opacity-40' : ''}">
-      <Collapsible.Root>
+      <Collapsible.Root
+        open={isOpen(entityType.id, typeEntities.some(e => e.id === activeEntityId))}
+        onOpenChange={(open) => handleToggle(entityType.id, open)}
+      >
         {#if editingTypeId === entityType.id}
           <div class="flex items-center gap-1 px-2 py-1">
             <input
