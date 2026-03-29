@@ -127,7 +127,9 @@
 
   async function handleNewSessionNote() {
     if (!authState.user || !gameState.activeGameId || !sessionState.activeSessionId) return;
-    await createSessionNote(authState.user.id, gameState.activeGameId, sessionState.activeSessionId, 'New Note');
+    const now = new Date();
+    const title = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+    await createSessionNote(authState.user.id, gameState.activeGameId, sessionState.activeSessionId, title);
   }
 
   // === Tab drag reordering ===
@@ -387,11 +389,6 @@
             content={activeNote.content}
             gameId={activeNote.gameId}
             onSave={(content) => updateNoteContent(activeNote.id, content, authState.user?.id, activeNote.gameId)}
-            onBeforeCleanup={async (content) => {
-              if (!authState.user || !activeNote) return;
-              const title = `Pre-cleanup: ${activeNote.title}`;
-              await createNote(authState.user.id, activeNote.gameId, activeNote.entityId, title, { content, activate: false });
-            }}
           />
           <BacklinksPanel noteId={activeNote.id} />
         {/key}

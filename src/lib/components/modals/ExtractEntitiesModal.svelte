@@ -62,8 +62,11 @@
         entityTypes: typeNames,
       });
 
-      // Parse the JSON result
-      const parsed = JSON.parse(result);
+      // Parse the JSON result — strip markdown code fences if present
+      let jsonStr = result.trim();
+      const fenceMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)```/);
+      if (fenceMatch) jsonStr = fenceMatch[1].trim();
+      const parsed = JSON.parse(jsonStr);
       const categories = parsed.categories || parsed;
 
       const items: EntitySuggestion[] = [];

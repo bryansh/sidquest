@@ -17,11 +17,11 @@
   import { settings } from '$lib/state/settingsState.svelte';
   import { uiState } from '$lib/state/uiState.svelte';
   import FindBar from './FindBar.svelte';
+  import ProposedChangesModal from '../modals/ProposedChangesModal.svelte';
 
-  let { content, onSave, onBeforeCleanup, gameId }: {
+  let { content, onSave, gameId }: {
     content: any;
     onSave: (content: any) => Promise<void> | void;
-    onBeforeCleanup?: (content: any) => Promise<void> | void;
     gameId: string;
   } = $props();
 
@@ -32,6 +32,7 @@
   let transcribing = $state(false);
   let cleaningUp = $state(false);
   let exportStatus = $state<string | null>(null);
+  let proposedContent = $state<any>(null);
   let exportStatusTimer: ReturnType<typeof setTimeout> | null = null;
 
   function flashExportStatus(message: string) {
@@ -103,26 +104,27 @@
 
       if (!text.trim()) return;
 
-      // Archive the original note before cleanup
-      if (onBeforeCleanup) {
-        await onBeforeCleanup(doc);
-      }
-
       const raw = await invoke<string>('cleanup_note', { text });
       const cleaned = restoreWikilinks(raw, wikilinkMap);
       const newDoc = deserialize(cleaned, wikilinkMap);
 
-      // Replace editor content and trigger save
-      editorInstance.commands.setContent(newDoc);
-      const json = editorInstance.getJSON();
-      saveStatus = 'saving';
-      await onSave(json);
-      saveStatus = 'saved';
+      // Show proposed changes for review instead of applying directly
+      proposedContent = newDoc;
     } catch (e) {
       console.error('[Cleanup] Error:', e);
     } finally {
       cleaningUp = false;
     }
+  }
+
+  async function acceptProposedChanges(acceptedContent: any) {
+    if (!editorInstance) return;
+    editorInstance.commands.setContent(acceptedContent);
+    const json = editorInstance.getJSON();
+    saveStatus = 'saving';
+    await onSave(json);
+    saveStatus = 'saved';
+    proposedContent = null;
   }
 
   async function insertImageFile(file: File) {
@@ -359,6 +361,16 @@
     {/if}
   </div>
 </div>
+
+{#if proposedContent}
+  <ProposedChangesModal
+    title="AI Cleanup"
+    description="Review the cleaned-up note. Edit if needed, then accept or reject."
+    content={proposedContent}
+    onAccept={(content) => acceptProposedChanges(content)}
+    onReject={() => proposedContent = null}
+  />
+{/if}
 
 <style>
   .tipex-wrapper :global(.tiptap) {
