@@ -82,7 +82,7 @@
           if (exists) continue;
           items.push({
             name: e.name || '',
-            summary: e.summary || '',
+            summary: e.description || e.summary || '',
             typeName: entityType.name,
             typeId: entityType.id,
           });
@@ -173,12 +173,12 @@
                   class="text-xs text-[var(--color-text-muted)] hover:text-red-400 px-1"
                 >&times;</button>
               </div>
-              <input
-                type="text"
+              <textarea
                 bind:value={suggestion.summary}
-                placeholder="Summary..."
-                class="w-full text-xs bg-transparent border-b border-transparent focus:border-[var(--color-accent)] outline-none text-[var(--color-text-muted)] px-0 py-0.5"
-              />
+                placeholder="Description..."
+                rows="2"
+                class="w-full text-xs bg-transparent border border-transparent focus:border-[var(--color-accent)] outline-none text-[var(--color-text-muted)] px-0 py-0.5 resize-none"
+              ></textarea>
             </div>
           {/each}
         </div>
