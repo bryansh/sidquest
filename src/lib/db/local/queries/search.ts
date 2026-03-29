@@ -6,6 +6,7 @@ export interface SearchResult {
   entityName: string;
   typeName: string;
   entityId: string;
+  sessionId: string | null;
   excerpt: string;
 }
 
@@ -15,6 +16,7 @@ interface SearchRow {
   entity_name: string;
   type_name: string;
   entity_id: string;
+  session_id: string | null;
   content: string | null;
 }
 
@@ -26,7 +28,7 @@ export async function searchNotes(query: string, gameId: string, userId: string)
 
   const rows = await db.select<SearchRow[]>(
     `SELECT n.id AS note_id, n.title AS note_title, e.name AS entity_name,
-            et.name AS type_name, e.id AS entity_id, n.content
+            et.name AS type_name, e.id AS entity_id, NULL AS session_id, n.content
      FROM notes n
      INNER JOIN entities e ON n.entity_id = e.id
      INNER JOIN entity_types et ON e.entity_type_id = et.id
@@ -34,8 +36,20 @@ export async function searchNotes(query: string, gameId: string, userId: string)
        AND (n.title LIKE ? COLLATE NOCASE
             OR e.name LIKE ? COLLATE NOCASE
             OR n.content LIKE ? COLLATE NOCASE)
+
+     UNION ALL
+
+     SELECT sn.id AS note_id, sn.title AS note_title, s.name AS entity_name,
+            'Session' AS type_name, '' AS entity_id, s.id AS session_id, sn.content
+     FROM session_notes sn
+     INNER JOIN sessions s ON sn.session_id = s.id
+     WHERE sn.game_id = ? AND sn.user_id = ? AND sn._deleted = 0 AND s._deleted = 0
+       AND (sn.title LIKE ? COLLATE NOCASE
+            OR s.name LIKE ? COLLATE NOCASE
+            OR sn.content LIKE ? COLLATE NOCASE)
+
      LIMIT 20`,
-    [gameId, userId, pattern, pattern, pattern]
+    [gameId, userId, pattern, pattern, pattern, gameId, userId, pattern, pattern, pattern]
   );
 
   return rows.map(r => ({
@@ -44,6 +58,7 @@ export async function searchNotes(query: string, gameId: string, userId: string)
     entityName: r.entity_name,
     typeName: r.type_name,
     entityId: r.entity_id,
+    sessionId: r.session_id,
     excerpt: extractExcerpt(r.content, query),
   }));
 }

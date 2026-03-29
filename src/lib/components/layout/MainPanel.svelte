@@ -6,9 +6,23 @@
   import NoteEditor from '../editor/NoteEditor.svelte';
   import BacklinksPanel from '../editor/BacklinksPanel.svelte';
   import ConfirmDeleteModal from '../modals/ConfirmDeleteModal.svelte';
+  import CopyToEntityModal from '../modals/CopyToEntityModal.svelte';
+  import ExtractEntitiesModal from '../modals/ExtractEntitiesModal.svelte';
 
   let confirmDeleteNoteId = $state<string | null>(null);
   let confirmDeleteSessionNoteId = $state<string | null>(null);
+  let showCopyToEntity = $state(false);
+  let showExtractEntities = $state(false);
+  let extractFlash = $state<string | null>(null);
+  let extractFlashTimer: ReturnType<typeof setTimeout> | null = null;
+  let copyFlash = $state<string | null>(null);
+  let copyFlashTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function flashCopySuccess(entityName: string) {
+    if (copyFlashTimer) clearTimeout(copyFlashTimer);
+    copyFlash = `Copied to ${entityName}`;
+    copyFlashTimer = setTimeout(() => { copyFlash = null; }, 3000);
+  }
 
   // === Entity editing ===
   let editingEntityName = $state(false);
@@ -213,6 +227,29 @@
         {/if}
       </div>
       <div class="flex items-center gap-2">
+        {#if copyFlash}
+          <span class="text-xs text-green-400">{copyFlash}</span>
+        {/if}
+        {#if extractFlash}
+          <span class="text-xs text-green-400">{extractFlash}</span>
+        {/if}
+        {#if sortedSessionNotes.length > 0}
+          <button
+            onclick={() => showExtractEntities = true}
+            title="AI: Extract entities from session notes"
+            class="text-sm px-3 py-1 rounded border border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:border-[var(--color-text-muted)] transition-colors"
+          >
+            Extract Entities
+          </button>
+        {/if}
+        {#if activeSessionNote}
+          <button
+            onclick={() => showCopyToEntity = true}
+            class="text-sm px-3 py-1 rounded border border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:border-[var(--color-text-muted)] transition-colors"
+          >
+            Copy to...
+          </button>
+        {/if}
         <button
           onclick={handleNewSessionNote}
           class="text-sm px-3 py-1 rounded bg-[var(--color-accent)] hover:bg-[var(--color-accent-hover)] text-white transition-colors"
@@ -379,6 +416,26 @@
     message="Are you sure you want to delete &quot;{noteToDelete?.title ?? 'this note'}&quot;? This cannot be undone."
     onClose={() => confirmDeleteNoteId = null}
     onConfirm={async () => { await deleteNote(confirmDeleteNoteId!); confirmDeleteNoteId = null; }}
+  />
+{/if}
+
+{#if showExtractEntities}
+  <ExtractEntitiesModal
+    onClose={() => showExtractEntities = false}
+    onExtracted={(count) => {
+      showExtractEntities = false;
+      if (extractFlashTimer) clearTimeout(extractFlashTimer);
+      extractFlash = `Created ${count} entities`;
+      extractFlashTimer = setTimeout(() => { extractFlash = null; }, 3000);
+    }}
+  />
+{/if}
+
+{#if showCopyToEntity && activeSessionNote}
+  <CopyToEntityModal
+    sessionNote={activeSessionNote}
+    onClose={() => showCopyToEntity = false}
+    onCopied={(name) => { showCopyToEntity = false; flashCopySuccess(name); }}
   />
 {/if}
 

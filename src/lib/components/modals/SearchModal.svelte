@@ -4,6 +4,7 @@
   import { gameState } from '$lib/state/gameState.svelte';
   import { authState } from '$lib/auth/authState.svelte';
   import { noteState, selectEntity } from '$lib/state/noteState.svelte';
+  import { selectSession, sessionState } from '$lib/state/sessionState.svelte';
 
   let { onClose }: { onClose: () => void } = $props();
 
@@ -26,9 +27,15 @@
   }
 
   function selectResult(r: SearchResult) {
-    selectEntity(r.entityId).then(() => {
-      noteState.activeNoteId = r.noteId;
-    });
+    if (r.sessionId) {
+      selectSession(r.sessionId).then(() => {
+        sessionState.activeSessionNoteId = r.noteId;
+      });
+    } else {
+      selectEntity(r.entityId).then(() => {
+        noteState.activeNoteId = r.noteId;
+      });
+    }
     onClose();
   }
 
@@ -78,6 +85,9 @@
               <div class="flex items-center gap-2">
                 <span class="text-sm font-medium text-[var(--color-text)]">{result.noteTitle}</span>
                 <span class="text-xs text-[var(--color-text-muted)]">{result.entityName} &middot; {result.typeName}</span>
+                {#if result.sessionId}
+                  <span class="text-[10px] px-1 py-0.5 rounded bg-[var(--color-accent)]/20 text-[var(--color-accent)]">Session</span>
+                {/if}
               </div>
               {#if result.excerpt}
                 <span class="text-xs text-[var(--color-text-muted)] truncate">{result.excerpt}</span>

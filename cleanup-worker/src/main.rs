@@ -24,6 +24,10 @@ Return ONLY the cleaned-up note. No commentary, no preamble, no explanation."#;
 struct Request {
     model_path: String,
     text: String,
+    #[serde(default)]
+    mode: Option<String>,
+    #[serde(default)]
+    entity_types: Option<Vec<String>>,
 }
 
 #[derive(Serialize)]
@@ -54,7 +58,7 @@ fn main() {
     // Run inference on a thread with a large stack (GGML graph traversal needs it)
     let handle = std::thread::Builder::new()
         .stack_size(64 * 1024 * 1024)
-        .spawn(move || run_inference(&req.model_path, &req.text))
+        .spawn(move || run_inference(&req.model_path, &req.text, req.mode.as_deref(), req.entity_types.as_deref()))
         .expect("Failed to spawn inference thread");
 
     let result = handle.join().unwrap_or_else(|_| Err("Inference thread panicked".to_string()));
@@ -72,7 +76,31 @@ fn main() {
     let _ = std::io::stdout().flush();
 }
 
-fn run_inference(model_path: &str, note_text: &str) -> Result<String, String> {
+fn build_extract_prompt(entity_types: &[String]) -> String {
+    let types_list = entity_types.join(", ");
+    format!(
+        r#"You are a game session note analyzer. Extract ALL named entities from the session notes.
+
+Classify each entity into one of these categories: {types_list}
+
+RULES:
+- Include unnamed characters by their role (e.g., "Barkeep", "Guard Captain")
+- Include currency and treasure as items
+- Be thorough — extract every person, place, thing, and organization mentioned
+- Return ONLY valid JSON with this exact structure, no other text:
+
+{{"categories": {{{categories_template}}}}}
+
+Where each category contains an array of objects with "name" and "summary" fields."#,
+        types_list = types_list,
+        categories_template = entity_types.iter()
+            .map(|t| format!("\"{}\": [{{\"name\": \"...\", \"summary\": \"...\"}}]", t))
+            .collect::<Vec<_>>()
+            .join(", ")
+    )
+}
+
+fn run_inference(model_path: &str, note_text: &str, mode: Option<&str>, entity_types: Option<&[String]>) -> Result<String, String> {
     use llama_cpp_2::context::params::LlamaContextParams;
     use llama_cpp_2::llama_backend::LlamaBackend;
     use llama_cpp_2::llama_batch::LlamaBatch;
@@ -98,10 +126,22 @@ fn run_inference(model_path: &str, note_text: &str) -> Result<String, String> {
         .new_context(&backend, ctx_params)
         .map_err(|e| format!("Failed to create context: {}", e))?;
 
+    // Select system prompt based on mode
+    let system_prompt = match mode {
+        Some("extract") => {
+            let types = entity_types.unwrap_or(&[]);
+            if types.is_empty() {
+                return Err("Entity types required for extract mode".to_string());
+            }
+            build_extract_prompt(types)
+        }
+        _ => SYSTEM_PROMPT.to_string(),
+    };
+
     // Format prompt with Gemma 3 chat template (system prompt goes in user turn)
     let prompt = format!(
         "<start_of_turn>user\n{}\n\n{}<end_of_turn>\n<start_of_turn>model\n",
-        SYSTEM_PROMPT, note_text
+        system_prompt, note_text
     );
 
     let tokens = model

@@ -1,6 +1,7 @@
 mod cleanup;
 mod dictation;
 mod export;
+mod extract;
 mod images;
 mod worker;
 
@@ -26,6 +27,7 @@ pub fn run() {
             images::save_image,
             export::save_export_file,
             export::save_export_file_binary,
+            extract::extract_entities,
         ])
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
