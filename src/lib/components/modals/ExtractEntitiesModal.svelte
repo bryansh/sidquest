@@ -101,70 +101,65 @@
     }
   }
 
-  function insertWikilinks(doc: any, entityMap: Map<string, string>): any {
-    if (!doc || !doc.content) return doc;
-    return {
-      ...doc,
-      content: doc.content.map((node: any) => insertWikilinksInNode(node, entityMap)),
-    };
+  // Split a text string on entity names, returning an array of text + wikilink nodes
+  function splitTextOnEntities(text: string, marks: any[] | undefined, entityMap: Map<string, string>): any[] {
+    // Build one regex matching all entity names
+    const entries = [...entityMap.entries()];
+    if (entries.length === 0) return [{ type: 'text', text, ...(marks?.length ? { marks } : {}) }];
+
+    const pattern = entries
+      .map(([name]) => name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+      .join('|');
+    const regex = new RegExp(`\\b(${pattern})\\b`, 'gi');
+
+    const parts: any[] = [];
+    let lastIdx = 0;
+    let match;
+
+    while ((match = regex.exec(text)) !== null) {
+      // Add text before the match
+      if (match.index > lastIdx) {
+        parts.push({ type: 'text', text: text.slice(lastIdx, match.index), ...(marks?.length ? { marks } : {}) });
+      }
+      // Find the matching entity (case-insensitive)
+      const matchedName = match[0];
+      const entry = entries.find(([name]) => name.toLowerCase() === matchedName.toLowerCase());
+      if (entry) {
+        parts.push({
+          type: 'mention',
+          attrs: { id: null, noteId: null, entityId: entry[1], label: entry[0] },
+        });
+      }
+      lastIdx = match.index + match[0].length;
+    }
+
+    // Add remaining text
+    if (lastIdx < text.length) {
+      parts.push({ type: 'text', text: text.slice(lastIdx), ...(marks?.length ? { marks } : {}) });
+    }
+
+    return parts.length > 0 ? parts : [{ type: 'text', text, ...(marks?.length ? { marks } : {}) }];
   }
 
-  function insertWikilinksInNode(node: any, entityMap: Map<string, string>): any {
-    // Don't process wikilink nodes themselves
-    if (node.type === 'mention') return node;
+  function insertWikilinks(doc: any, entityMap: Map<string, string>): any {
+    if (!doc || !doc.content) return doc;
+    return { ...doc, content: processContent(doc.content, entityMap) };
+  }
 
-    // Process text nodes: split on entity names and insert wikilinks
-    if (node.type === 'text' && node.text) {
-      const parts: any[] = [];
-      let remaining = node.text;
-
-      for (const [name, entityId] of entityMap) {
-        const regex = new RegExp(`\\b${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
-        const newParts: any[] = [];
-        for (const part of remaining ? [remaining] : []) {
-          let lastIdx = 0;
-          let match;
-          regex.lastIndex = 0;
-          while ((match = regex.exec(part)) !== null) {
-            if (match.index > lastIdx) {
-              newParts.push({ type: 'text', text: part.slice(lastIdx, match.index), ...(node.marks ? { marks: node.marks } : {}) });
-            }
-            newParts.push({
-              type: 'mention',
-              attrs: { id: null, noteId: null, entityId, label: name },
-            });
-            lastIdx = match.index + match[0].length;
-          }
-          if (lastIdx < part.length) {
-            newParts.push({ type: 'text', text: part.slice(lastIdx), ...(node.marks ? { marks: node.marks } : {}) });
-          }
-          if (newParts.length === 0) {
-            newParts.push({ type: 'text', text: part, ...(node.marks ? { marks: node.marks } : {}) });
-          }
-        }
-        // For simplicity, only process the first entity name per text node
-        if (newParts.length > 1) return newParts;
-        remaining = newParts.length > 0 && newParts[0].text ? newParts[0].text : remaining;
+  function processContent(content: any[], entityMap: Map<string, string>): any[] {
+    const result: any[] = [];
+    for (const node of content) {
+      if (node.type === 'mention') {
+        result.push(node);
+      } else if (node.type === 'text' && node.text) {
+        result.push(...splitTextOnEntities(node.text, node.marks, entityMap));
+      } else if (node.content) {
+        result.push({ ...node, content: processContent(node.content, entityMap) });
+      } else {
+        result.push(node);
       }
-
-      return node;
     }
-
-    // Recurse into content nodes
-    if (node.content) {
-      const newContent: any[] = [];
-      for (const child of node.content) {
-        const result = insertWikilinksInNode(child, entityMap);
-        if (Array.isArray(result)) {
-          newContent.push(...result);
-        } else {
-          newContent.push(result);
-        }
-      }
-      return { ...node, content: newContent };
-    }
-
-    return node;
+    return result;
   }
 
   async function createEntities() {
@@ -192,13 +187,19 @@
       }
     }
 
-    // Tag entity names in session notes with wikilinks
+    // Auto-wikilink entity names in session notes
     if (entityMap.size > 0) {
       for (const note of sessionState.sessionNotes) {
         if (!note.content) continue;
-        const updated = insertWikilinks(note.content, entityMap);
-        if (JSON.stringify(updated) !== JSON.stringify(note.content)) {
-          await updateSessionNoteContent(note.id, updated);
+        try {
+          const updated = insertWikilinks(note.content, entityMap);
+          const before = JSON.stringify(note.content);
+          const after = JSON.stringify(updated);
+          if (after !== before) {
+            await updateSessionNoteContent(note.id, updated);
+          }
+        } catch (e) {
+          console.error('[Extract] Failed to wikilink session note:', e);
         }
       }
     }
