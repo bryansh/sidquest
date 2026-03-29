@@ -3,7 +3,7 @@
   import { invoke } from '@tauri-apps/api/core';
   import { gameState, createEntity, createEntityType } from '$lib/state/gameState.svelte';
   import { createNote } from '$lib/state/noteState.svelte';
-  import { sessionState, updateSessionNoteContent } from '$lib/state/sessionState.svelte';
+  import { sessionState } from '$lib/state/sessionState.svelte';
   import { authState } from '$lib/auth/authState.svelte';
   import { serialize } from '../editor/cleanupRoundtrip';
 
@@ -101,67 +101,6 @@
     }
   }
 
-  // Split a text string on entity names, returning an array of text + wikilink nodes
-  function splitTextOnEntities(text: string, marks: any[] | undefined, entityMap: Map<string, string>): any[] {
-    // Build one regex matching all entity names
-    const entries = [...entityMap.entries()];
-    if (entries.length === 0) return [{ type: 'text', text, ...(marks?.length ? { marks } : {}) }];
-
-    const pattern = entries
-      .map(([name]) => name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
-      .join('|');
-    const regex = new RegExp(`\\b(${pattern})\\b`, 'gi');
-
-    const parts: any[] = [];
-    let lastIdx = 0;
-    let match;
-
-    while ((match = regex.exec(text)) !== null) {
-      // Add text before the match
-      if (match.index > lastIdx) {
-        parts.push({ type: 'text', text: text.slice(lastIdx, match.index), ...(marks?.length ? { marks } : {}) });
-      }
-      // Find the matching entity (case-insensitive)
-      const matchedName = match[0];
-      const entry = entries.find(([name]) => name.toLowerCase() === matchedName.toLowerCase());
-      if (entry) {
-        parts.push({
-          type: 'mention',
-          attrs: { id: null, noteId: null, entityId: entry[1], label: entry[0] },
-        });
-      }
-      lastIdx = match.index + match[0].length;
-    }
-
-    // Add remaining text
-    if (lastIdx < text.length) {
-      parts.push({ type: 'text', text: text.slice(lastIdx), ...(marks?.length ? { marks } : {}) });
-    }
-
-    return parts.length > 0 ? parts : [{ type: 'text', text, ...(marks?.length ? { marks } : {}) }];
-  }
-
-  function insertWikilinks(doc: any, entityMap: Map<string, string>): any {
-    if (!doc || !doc.content) return doc;
-    return { ...doc, content: processContent(doc.content, entityMap) };
-  }
-
-  function processContent(content: any[], entityMap: Map<string, string>): any[] {
-    const result: any[] = [];
-    for (const node of content) {
-      if (node.type === 'mention') {
-        result.push(node);
-      } else if (node.type === 'text' && node.text) {
-        result.push(...splitTextOnEntities(node.text, node.marks, entityMap));
-      } else if (node.content) {
-        result.push({ ...node, content: processContent(node.content, entityMap) });
-      } else {
-        result.push(node);
-      }
-    }
-    return result;
-  }
-
   async function createEntities() {
     if (!authState.user || !gameState.activeGameId) return;
     status = 'creating';
@@ -187,21 +126,11 @@
       }
     }
 
-    // Auto-wikilink entity names in session notes
+    // Tell the editor to wikilink these entity names
     if (entityMap.size > 0) {
-      for (const note of sessionState.sessionNotes) {
-        if (!note.content) continue;
-        try {
-          const updated = insertWikilinks(note.content, entityMap);
-          const before = JSON.stringify(note.content);
-          const after = JSON.stringify(updated);
-          if (after !== before) {
-            await updateSessionNoteContent(note.id, updated);
-          }
-        } catch (e) {
-          console.error('[Extract] Failed to wikilink session note:', e);
-        }
-      }
+      window.dispatchEvent(new CustomEvent('wikilink-entities', {
+        detail: Object.fromEntries(entityMap),
+      }));
     }
 
     onExtracted(created);

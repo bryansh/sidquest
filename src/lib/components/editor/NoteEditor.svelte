@@ -233,9 +233,60 @@
     if (touched) view.dispatch(tr);
   }
 
+  function handleWikilinkEntities(e: Event) {
+    if (!editorInstance) return;
+    const entityMap = (e as CustomEvent).detail as Record<string, string>;
+    if (!entityMap || Object.keys(entityMap).length === 0) return;
+
+    const { state, view } = editorInstance;
+    const { tr } = state;
+    const doc = state.doc;
+
+    // Collect replacements (reverse order to preserve positions)
+    const replacements: { from: number; to: number; name: string; entityId: string }[] = [];
+
+    doc.descendants((node, pos) => {
+      if (node.type.name === 'mention') return false;
+      if (!node.isText || !node.text) return;
+      const text = node.text;
+      for (const [name, entityId] of Object.entries(entityMap)) {
+        const regex = new RegExp(`\\b${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
+        let match;
+        while ((match = regex.exec(text)) !== null) {
+          replacements.push({
+            from: pos + match.index,
+            to: pos + match.index + match[0].length,
+            name,
+            entityId,
+          });
+        }
+      }
+    });
+
+    // Apply in reverse order so positions stay valid
+    replacements.sort((a, b) => b.from - a.from);
+    for (const r of replacements) {
+      const wikilinkNode = state.schema.nodes.mention.create({
+        id: null, noteId: null, entityId: r.entityId, label: r.name,
+      });
+      tr.replaceWith(r.from, r.to, wikilinkNode);
+    }
+
+    if (replacements.length > 0) {
+      view.dispatch(tr);
+      // Trigger save
+      const json = editorInstance.getJSON();
+      onSave(json);
+    }
+  }
+
   onMount(() => {
     window.addEventListener('wikilinks-refresh', refreshWikilinks);
-    return () => window.removeEventListener('wikilinks-refresh', refreshWikilinks);
+    window.addEventListener('wikilink-entities', handleWikilinkEntities);
+    return () => {
+      window.removeEventListener('wikilinks-refresh', refreshWikilinks);
+      window.removeEventListener('wikilink-entities', handleWikilinkEntities);
+    };
   });
 
   // Called from settings modal when spellcheck is toggled
