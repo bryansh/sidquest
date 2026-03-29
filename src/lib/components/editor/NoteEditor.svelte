@@ -234,13 +234,25 @@
   }
 
   function handleWikilinkEntities(e: Event) {
-    if (!editorInstance) return;
+    if (!editorInstance) {
+      console.log('[Wikilink] No editor instance');
+      return;
+    }
     const entityMap = (e as CustomEvent).detail as Record<string, string>;
     if (!entityMap || Object.keys(entityMap).length === 0) return;
+
+    console.log('[Wikilink] Inserting wikilinks for:', Object.keys(entityMap));
 
     const { state, view } = editorInstance;
     const { tr } = state;
     const doc = state.doc;
+
+    // Log editor content for debugging
+    let textContent = '';
+    doc.descendants((node) => {
+      if (node.isText) textContent += node.text;
+    });
+    console.log('[Wikilink] Editor text content:', textContent.slice(0, 200));
 
     // Collect replacements (reverse order to preserve positions)
     const replacements: { from: number; to: number; name: string; entityId: string }[] = [];
@@ -263,10 +275,12 @@
       }
     });
 
+    console.log('[Wikilink] Found', replacements.length, 'replacements');
+
     // Apply in reverse order so positions stay valid
     replacements.sort((a, b) => b.from - a.from);
     for (const r of replacements) {
-      const wikilinkNode = state.schema.nodes.mention.create({
+      const wikilinkNode = state.schema.nodes.wikilink.create({
         id: null, noteId: null, entityId: r.entityId, label: r.name,
       });
       tr.replaceWith(r.from, r.to, wikilinkNode);
@@ -274,7 +288,6 @@
 
     if (replacements.length > 0) {
       view.dispatch(tr);
-      // Trigger save
       const json = editorInstance.getJSON();
       onSave(json);
     }
