@@ -17,7 +17,7 @@ function text(t: string, marks?: any[]) {
 
 function wikilink(entityId: string, label: string) {
   return {
-    type: 'mention',
+    type: 'wikilink',
     attrs: { id: null, noteId: null, entityId, label },
   };
 }

@@ -124,7 +124,7 @@ function textNode(text: string, marks?: any[]): any {
 
 function wikilinkNode(target: WikilinkTarget): any {
   return {
-    type: 'mention',
+    type: 'wikilink',
     attrs: {
       id: null,
       noteId: null,
