@@ -70,24 +70,31 @@ export const WikilinkExtension = Mention.extend({
       new Plugin({
         key: new PluginKey('wikilinkClick'),
         props: {
-          handleClick(view, pos) {
-            const node = view.state.doc.nodeAt(pos);
-            if (node?.type.name !== 'wikilink') return false;
-            const { noteId, entityId } = node.attrs;
-            if (noteId) {
-              const note = noteState.allGameNotes.find(n => n.id === noteId);
-              if (note) {
-                selectEntity(note.entityId).then(() => {
-                  noteState.activeNoteId = noteId;
-                });
+          handleDOMEvents: {
+            click(view, event) {
+              const target = event.target as HTMLElement;
+              const wikilinkEl = target.closest?.('[data-type="wikilink"]') as HTMLElement | null;
+              if (!wikilinkEl) return false;
+
+              event.preventDefault();
+              const noteId = wikilinkEl.dataset.noteId;
+              const entityId = wikilinkEl.dataset.entityId;
+
+              if (noteId) {
+                const note = noteState.allGameNotes.find(n => n.id === noteId);
+                if (note) {
+                  selectEntity(note.entityId).then(() => {
+                    noteState.activeNoteId = noteId;
+                  });
+                }
+                return true;
               }
-              return true;
-            }
-            if (entityId) {
-              selectEntity(entityId);
-              return true;
-            }
-            return false;
+              if (entityId) {
+                selectEntity(entityId);
+                return true;
+              }
+              return false;
+            },
           },
         },
       }),
