@@ -143,7 +143,6 @@
         // Don't wikilink the entity's own name in its own description
         const otherEntities = new Map([...wikilinkMap].filter(([name]) => name.toLowerCase() !== s.name.toLowerCase()));
         const content = buildDescriptionDoc(s.description, otherEntities);
-        console.log('[Extract] Creating note for', s.name, '| title:', noteTitle, '| content:', JSON.stringify(content).slice(0, 200));
         await createNote(authState.user.id, gameState.activeGameId, target.entityId, noteTitle, {
           content,
           activate: false,

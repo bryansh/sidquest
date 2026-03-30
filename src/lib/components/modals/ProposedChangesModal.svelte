@@ -18,7 +18,7 @@
   let reviewEditor = $state<Editor | null>(null);
 
   const extensions: any[] = [
-    ...defaultExtensions,
+    ...defaultExtensions.filter((ext: any) => ext?.name !== 'placeholder'),
     WikilinkExtension,
   ];
 

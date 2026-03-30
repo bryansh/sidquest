@@ -187,7 +187,7 @@
   }
 
   const extensions: any[] = [
-    ...defaultExtensions,
+    ...defaultExtensions.filter((ext: any) => ext?.name !== 'placeholder'),
     Placeholder.configure({ placeholder: 'Start writing...' }),
     WikilinkExtension,
     SpellcheckExtension,
@@ -234,25 +234,13 @@
   }
 
   function handleWikilinkEntities(e: Event) {
-    if (!editorInstance) {
-      console.log('[Wikilink] No editor instance');
-      return;
-    }
+    if (!editorInstance) return;
     const entityMap = (e as CustomEvent).detail as Record<string, string>;
     if (!entityMap || Object.keys(entityMap).length === 0) return;
-
-    console.log('[Wikilink] Inserting wikilinks for:', Object.keys(entityMap));
 
     const { state, view } = editorInstance;
     const { tr } = state;
     const doc = state.doc;
-
-    // Log editor content for debugging
-    let textContent = '';
-    doc.descendants((node) => {
-      if (node.isText) textContent += node.text;
-    });
-    console.log('[Wikilink] Editor text content:', textContent.slice(0, 200));
 
     // Collect replacements (reverse order to preserve positions)
     const replacements: { from: number; to: number; name: string; entityId: string }[] = [];
@@ -274,8 +262,6 @@
         }
       }
     });
-
-    console.log('[Wikilink] Found', replacements.length, 'replacements');
 
     // Apply in reverse order so positions stay valid
     replacements.sort((a, b) => b.from - a.from);
