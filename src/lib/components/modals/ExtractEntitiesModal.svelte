@@ -7,6 +7,7 @@
   import { insertWikilinksInDoc, type WikilinkTarget } from '$lib/tiptapTransform';
   import { authState } from '$lib/auth/authState.svelte';
   import { serialize } from '../editor/cleanupRoundtrip';
+  import { settings } from '$lib/state/settingsState.svelte';
 
   let { onClose, onExtracted }: {
     onClose: () => void;
@@ -62,6 +63,9 @@
       const result = await invoke<string>('extract_entities', {
         text: allText,
         entityTypes: typeNames,
+        provider: settings.aiProvider,
+        modelId: settings.localModelId,
+        apiKey: settings.aiProvider === 'cloud' ? settings.claudeApiKey : null,
       });
 
       // Parse the JSON result — strip markdown code fences if present

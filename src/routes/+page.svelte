@@ -19,6 +19,8 @@
   import SearchModal from '$lib/components/modals/SearchModal.svelte';
   import ConfirmDeleteModal from '$lib/components/modals/ConfirmDeleteModal.svelte';
   import SettingsModal from '$lib/components/modals/SettingsModal.svelte';
+  import ChatPanel from '$lib/components/layout/ChatPanel.svelte';
+  import { chatState } from '$lib/state/chatState.svelte';
 
   let showSearch = $state(false);
   let showNewGame = $state(false);
@@ -123,6 +125,9 @@
         onpointerdown={handleResizeStart}
       ></div>
       <MainPanel />
+      {#if chatState.open}
+        <ChatPanel />
+      {/if}
     </div>
   </div>
 

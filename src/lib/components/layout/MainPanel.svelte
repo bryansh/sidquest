@@ -7,6 +7,7 @@
   import BacklinksPanel from '../editor/BacklinksPanel.svelte';
   import ConfirmDeleteModal from '../modals/ConfirmDeleteModal.svelte';
   import ExtractEntitiesModal from '../modals/ExtractEntitiesModal.svelte';
+  import { chatState, openChat } from '$lib/state/chatState.svelte';
 
   let confirmDeleteNoteId = $state<string | null>(null);
   let confirmDeleteSessionNoteId = $state<string | null>(null);
@@ -195,7 +196,7 @@
   }
 </script>
 
-<main class="flex-1 flex flex-col h-full overflow-hidden">
+<main class="flex-1 flex flex-col h-full overflow-hidden relative">
   {#if activeSession}
     <!-- SESSION VIEW -->
     <header class="flex items-center justify-between px-4 py-3 border-b border-[var(--color-border)]">
@@ -382,6 +383,17 @@
     <div class="flex-1 flex items-center justify-center">
       <p class="text-[var(--color-text-muted)]">Select a session or entity from the sidebar to view notes.</p>
     </div>
+  {/if}
+
+  <!-- Chat toggle button -->
+  {#if gameState.activeGameId && !chatState.open}
+    <button
+      onclick={openChat}
+      title="Ask questions about your game"
+      class="absolute bottom-4 right-4 w-10 h-10 rounded-full bg-[var(--color-accent)] hover:bg-[var(--color-accent-hover)] text-white shadow-lg flex items-center justify-center transition-colors text-lg"
+    >
+      💬
+    </button>
   {/if}
 </main>
 

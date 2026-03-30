@@ -1,6 +1,10 @@
 <script lang="ts">
   import { Dialog } from 'bits-ui';
-  import { settings, updateSettings, accentColors, formatShortcut, displayShortcut, type Theme, type AccentColor } from '$lib/state/settingsState.svelte';
+  import { invoke } from '@tauri-apps/api/core';
+  import { settings, updateSettings, accentColors, formatShortcut, displayShortcut, type Theme, type AccentColor, type AIProvider } from '$lib/state/settingsState.svelte';
+  import { modelState, checkLocalModel, downloadLocalModel } from '$lib/state/modelState.svelte';
+  import { type LocalModelDef, formatBytes } from '$lib/models';
+  import { onMount } from 'svelte';
 
   let { onClose }: { onClose: () => void } = $props();
 
@@ -26,6 +30,36 @@
 
   let recordingHotkey = $state(false);
   let hotkeyError = $state('');
+  let availableModels = $state<LocalModelDef[]>([]);
+  let testingConnection = $state(false);
+  let connectionResult = $state<{ ok: boolean; message: string } | null>(null);
+  let showApiKey = $state(false);
+
+  onMount(async () => {
+    try {
+      availableModels = await invoke<LocalModelDef[]>('get_available_models');
+      // Check status of each model
+      for (const m of availableModels) {
+        await checkLocalModel(m.id);
+      }
+    } catch (e) {
+      console.error('[Settings] Failed to load models:', e);
+    }
+  });
+
+  async function testClaudeKey() {
+    if (!settings.claudeApiKey) return;
+    testingConnection = true;
+    connectionResult = null;
+    try {
+      await invoke<boolean>('test_claude_api', { apiKey: settings.claudeApiKey });
+      connectionResult = { ok: true, message: 'Connected!' };
+    } catch (e) {
+      connectionResult = { ok: false, message: String(e) };
+    } finally {
+      testingConnection = false;
+    }
+  }
 
   function handleHotkeyCapture(e: KeyboardEvent) {
     e.preventDefault();
@@ -173,6 +207,115 @@
               class="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform {settings.spellCheck ? 'translate-x-4' : ''}"
             ></span>
           </button>
+        </div>
+        <!-- AI Model -->
+        <div class="pt-3 border-t border-[var(--color-border)]">
+          <label class="text-xs font-medium text-[var(--color-text-muted)] uppercase tracking-wide mb-2 block">AI Model</label>
+
+          <!-- Provider Toggle -->
+          <div class="flex gap-2 mb-3">
+            <button
+              onclick={() => updateSettings({ aiProvider: 'local' })}
+              class="flex-1 px-3 py-2 rounded text-sm border transition-colors {settings.aiProvider === 'local' ? 'border-[var(--color-accent)] bg-[var(--color-accent)]/10 text-[var(--color-text)]' : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-text-muted)]'}"
+            >
+              Local Model
+            </button>
+            <button
+              onclick={() => updateSettings({ aiProvider: 'cloud' })}
+              class="flex-1 px-3 py-2 rounded text-sm border transition-colors {settings.aiProvider === 'cloud' ? 'border-[var(--color-accent)] bg-[var(--color-accent)]/10 text-[var(--color-text)]' : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-text-muted)]'}"
+            >
+              Cloud (Claude)
+            </button>
+          </div>
+
+          {#if settings.aiProvider === 'local'}
+            <!-- Local Model Selection -->
+            <div class="flex flex-col gap-2">
+              {#each availableModels as model}
+                {@const entry = modelState.localModels[model.id]}
+                {@const isSelected = settings.localModelId === model.id}
+                {@const status = entry?.status ?? 'unknown'}
+                <!-- svelte-ignore a11y_no_static_element_interactions -->
+                <div
+                  onclick={() => updateSettings({ localModelId: model.id })}
+                  onkeydown={(e: KeyboardEvent) => { if (e.key === 'Enter') updateSettings({ localModelId: model.id }); }}
+                  role="radio"
+                  aria-checked={isSelected}
+                  tabindex="0"
+                  class="flex items-center justify-between p-2.5 rounded border transition-colors text-left cursor-pointer {isSelected ? 'border-[var(--color-accent)] bg-[var(--color-accent)]/10' : 'border-[var(--color-border)] hover:border-[var(--color-text-muted)]'}"
+                >
+                  <div>
+                    <span class="text-sm text-[var(--color-text)]">{model.name}</span>
+                    <span class="text-xs text-[var(--color-text-muted)] ml-2">{formatBytes(model.size_bytes)}</span>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    {#if status === 'ready'}
+                      <span class="text-xs text-green-400">Ready</span>
+                    {:else if status === 'downloading'}
+                      <span class="text-xs text-[var(--color-accent)] animate-pulse">{entry?.progress ?? 0}%</span>
+                    {:else if status === 'missing' || status === 'unknown'}
+                      {#if isSelected}
+                        <button
+                          onclick={(e: MouseEvent) => { e.stopPropagation(); downloadLocalModel(model.id); }}
+                          class="text-xs px-2 py-0.5 rounded bg-[var(--color-accent)] text-white hover:bg-[var(--color-accent-hover)] transition-colors"
+                        >
+                          Download
+                        </button>
+                      {:else}
+                        <span class="text-xs text-[var(--color-text-muted)]">Not downloaded</span>
+                      {/if}
+                    {:else}
+                      <span class="text-xs text-[var(--color-text-muted)]">Checking...</span>
+                    {/if}
+                  </div>
+                </div>
+              {/each}
+            </div>
+          {:else}
+            <!-- Claude API Key -->
+            <div class="flex flex-col gap-2">
+              <div class="flex gap-2">
+                <div class="flex-1 relative">
+                  {#if showApiKey}
+                    <input
+                      type="text"
+                      value={settings.claudeApiKey}
+                      oninput={(e) => { updateSettings({ claudeApiKey: (e.target as HTMLInputElement).value }); connectionResult = null; }}
+                      placeholder="sk-ant-..."
+                      class="w-full px-3 py-2 rounded text-sm border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent)]"
+                    />
+                  {:else}
+                    <input
+                      type="password"
+                      value={settings.claudeApiKey}
+                      oninput={(e) => { updateSettings({ claudeApiKey: (e.target as HTMLInputElement).value }); connectionResult = null; }}
+                      placeholder="sk-ant-..."
+                      class="w-full px-3 py-2 rounded text-sm border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent)]"
+                    />
+                  {/if}
+                  <button
+                    onclick={() => showApiKey = !showApiKey}
+                    class="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+                  >
+                    {showApiKey ? 'Hide' : 'Show'}
+                  </button>
+                </div>
+                <button
+                  onclick={testClaudeKey}
+                  disabled={!settings.claudeApiKey || testingConnection}
+                  class="px-3 py-2 rounded text-sm border border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-text-muted)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {testingConnection ? 'Testing...' : 'Test'}
+                </button>
+              </div>
+              {#if connectionResult}
+                <p class="text-xs {connectionResult.ok ? 'text-green-400' : 'text-red-400'}">
+                  {connectionResult.message}
+                </p>
+              {/if}
+              <p class="text-xs text-[var(--color-text-muted)]">Uses Claude Sonnet for cleanup, extraction, and chat</p>
+            </div>
+          {/if}
         </div>
       </div>
 

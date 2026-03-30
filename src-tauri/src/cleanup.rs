@@ -1,29 +1,33 @@
 use tauri::{AppHandle, Emitter, Manager};
 
+use crate::claude;
+use crate::models::get_model_by_id;
+use crate::prompts;
 use crate::worker::run_worker;
 
-const MODEL_FILENAME: &str = "google_gemma-3-4b-it-Q4_K_M.gguf";
-const MODEL_URL: &str = "https://huggingface.co/bartowski/google_gemma-3-4b-it-GGUF/resolve/main/google_gemma-3-4b-it-Q4_K_M.gguf";
-
-fn model_path(app: &AppHandle) -> Result<std::path::PathBuf, String> {
+fn model_path(app: &AppHandle, model_id: &str) -> Result<std::path::PathBuf, String> {
+    let model = get_model_by_id(model_id)
+        .ok_or_else(|| format!("Unknown model: {}", model_id))?;
     let dir = app
         .path()
         .app_data_dir()
         .map_err(|e| format!("Failed to get app data dir: {}", e))?;
-    Ok(dir.join(MODEL_FILENAME))
+    Ok(dir.join(model.filename))
 }
 
 #[tauri::command]
-pub fn check_cleanup_model(app: AppHandle) -> Result<bool, String> {
-    let path = model_path(&app)?;
+pub fn check_local_model(app: AppHandle, model_id: String) -> Result<bool, String> {
+    let path = model_path(&app, &model_id)?;
     Ok(path.exists())
 }
 
 #[tauri::command]
-pub async fn download_cleanup_model(app: AppHandle, window: tauri::WebviewWindow) -> Result<(), String> {
+pub async fn download_local_model(app: AppHandle, window: tauri::WebviewWindow, model_id: String) -> Result<(), String> {
     use futures_util::StreamExt;
 
-    let path = model_path(&app)?;
+    let model = get_model_by_id(&model_id)
+        .ok_or_else(|| format!("Unknown model: {}", model_id))?;
+    let path = model_path(&app, &model_id)?;
 
     if let Some(parent) = path.parent() {
         tokio::fs::create_dir_all(parent)
@@ -31,7 +35,7 @@ pub async fn download_cleanup_model(app: AppHandle, window: tauri::WebviewWindow
             .map_err(|e| format!("Failed to create directory: {}", e))?;
     }
 
-    let response = reqwest::get(MODEL_URL)
+    let response = reqwest::get(model.url)
         .await
         .map_err(|e| format!("Failed to download model: {}", e))?;
 
@@ -51,7 +55,8 @@ pub async fn download_cleanup_model(app: AppHandle, window: tauri::WebviewWindow
             .map_err(|e| format!("Write error: {}", e))?;
 
         downloaded += chunk.len() as u64;
-        let _ = window.emit("cleanup-model-progress", serde_json::json!({
+        let _ = window.emit("local-model-progress", serde_json::json!({
+            "modelId": model_id,
             "downloaded": downloaded,
             "total": total,
         }));
@@ -64,21 +69,48 @@ pub async fn download_cleanup_model(app: AppHandle, window: tauri::WebviewWindow
 pub async fn cleanup_note(
     app: AppHandle,
     text: String,
+    provider: String,
+    model_id: String,
+    api_key: Option<String>,
 ) -> Result<String, String> {
-    let path = model_path(&app)?;
+    if provider == "cloud" {
+        let key = api_key.ok_or("API key required for cloud provider")?;
+        let system = prompts::cleanup_system_prompt();
+        return claude::claude_inference(&key, &system, &text).await;
+    }
+
+    // Local model
+    let model = get_model_by_id(&model_id)
+        .ok_or_else(|| format!("Unknown model: {}", model_id))?;
+    let path = model_path(&app, &model_id)?;
     if !path.exists() {
-        return Err("Cleanup model not downloaded".to_string());
+        return Err("Model not downloaded".to_string());
     }
 
     let model_path_str = path.to_string_lossy().to_string();
+    let chat_template = model.chat_template.to_string();
+    let context_window = model.context_window;
 
     tokio::task::spawn_blocking(move || {
         let request = serde_json::json!({
             "model_path": model_path_str,
             "text": text,
+            "chat_template": chat_template,
+            "n_ctx": context_window,
         });
         run_worker("cleanup-worker", &request)
     })
     .await
     .map_err(|e| format!("Task join error: {}", e))?
+}
+
+// Backward compat wrappers for existing check/download commands
+#[tauri::command]
+pub fn check_cleanup_model(app: AppHandle) -> Result<bool, String> {
+    check_local_model(app, "gemma3-4b".to_string())
+}
+
+#[tauri::command]
+pub async fn download_cleanup_model(app: AppHandle, window: tauri::WebviewWindow) -> Result<(), String> {
+    download_local_model(app, window, "gemma3-4b".to_string()).await
 }

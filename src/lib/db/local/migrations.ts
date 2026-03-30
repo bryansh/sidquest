@@ -1,6 +1,6 @@
 import type Database from '@tauri-apps/plugin-sql';
 
-const CURRENT_VERSION = 2;
+const CURRENT_VERSION = 4;
 
 export async function runMigrations(db: Database) {
   // Meta table for tracking schema version and sync state
@@ -21,6 +21,12 @@ export async function runMigrations(db: Database) {
   }
   if (currentVersion < 2) {
     await migrateV2(db);
+  }
+  if (currentVersion < 3) {
+    await migrateV3(db);
+  }
+  if (currentVersion < 4) {
+    await migrateV4(db);
   }
 
   if (currentVersion < CURRENT_VERSION) {
@@ -161,4 +167,48 @@ async function migrateV2(db: Database) {
   await db.execute('CREATE INDEX IF NOT EXISTS idx_session_notes_game ON session_notes(game_id)');
   await db.execute('CREATE INDEX IF NOT EXISTS idx_dirty_sessions ON sessions(_dirty) WHERE _dirty = 1');
   await db.execute('CREATE INDEX IF NOT EXISTS idx_dirty_session_notes ON session_notes(_dirty) WHERE _dirty = 1');
+}
+
+async function migrateV3(db: Database) {
+  // Drop old embeddings table if it exists (schema changed: text_preview -> full_text)
+  await db.execute('DROP TABLE IF EXISTS note_embeddings');
+
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS note_embeddings (
+      id TEXT PRIMARY KEY,
+      source_type TEXT NOT NULL,
+      source_id TEXT NOT NULL,
+      game_id TEXT NOT NULL,
+      title TEXT NOT NULL,
+      full_text TEXT,
+      embedding BLOB NOT NULL,
+      embedding_dim INTEGER NOT NULL,
+      source_updated_at TEXT,
+      updated_at TEXT DEFAULT (datetime('now'))
+    )
+  `);
+
+  await db.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_embeddings_source ON note_embeddings(source_type, source_id)');
+  await db.execute('CREATE INDEX IF NOT EXISTS idx_embeddings_game ON note_embeddings(game_id)');
+}
+
+async function migrateV4(db: Database) {
+  // Force re-index: drop and recreate with full_text column
+  await db.execute('DROP TABLE IF EXISTS note_embeddings');
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS note_embeddings (
+      id TEXT PRIMARY KEY,
+      source_type TEXT NOT NULL,
+      source_id TEXT NOT NULL,
+      game_id TEXT NOT NULL,
+      title TEXT NOT NULL,
+      full_text TEXT,
+      embedding BLOB NOT NULL,
+      embedding_dim INTEGER NOT NULL,
+      source_updated_at TEXT,
+      updated_at TEXT DEFAULT (datetime('now'))
+    )
+  `);
+  await db.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_embeddings_source ON note_embeddings(source_type, source_id)');
+  await db.execute('CREATE INDEX IF NOT EXISTS idx_embeddings_game ON note_embeddings(game_id)');
 }

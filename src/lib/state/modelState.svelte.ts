@@ -1,29 +1,76 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
+import { settings } from './settingsState.svelte';
 
 export type ModelStatus = 'unknown' | 'checking' | 'missing' | 'downloading' | 'ready';
 
+interface ModelEntry {
+  status: ModelStatus;
+  progress: number | null;
+}
+
 export const modelState = $state({
   whisper: { status: 'unknown' as ModelStatus, progress: null as number | null },
-  cleanup: { status: 'unknown' as ModelStatus, progress: null as number | null },
+  localModels: {} as Record<string, ModelEntry>,
 });
 
-let checked = false;
+/** Get status of the currently selected local model */
+export function getActiveLocalModel(): ModelEntry {
+  const id = settings.localModelId;
+  return modelState.localModels[id] ?? { status: 'unknown', progress: null };
+}
+
+let whisperChecked = false;
 
 export async function checkModels() {
-  if (checked) return;
-  checked = true;
+  // Check whisper once
+  if (!whisperChecked) {
+    whisperChecked = true;
+    modelState.whisper.status = 'checking';
+    const whisperReady = await invoke<boolean>('check_whisper_model').catch(() => false);
+    modelState.whisper.status = whisperReady ? 'ready' : 'missing';
+  }
 
-  modelState.whisper.status = 'checking';
-  modelState.cleanup.status = 'checking';
+  // Check the currently selected local model
+  await checkLocalModel(settings.localModelId);
+}
 
-  const [whisperReady, cleanupReady] = await Promise.all([
-    invoke<boolean>('check_whisper_model').catch(() => false),
-    invoke<boolean>('check_cleanup_model').catch(() => false),
-  ]);
+export async function checkLocalModel(modelId: string) {
+  if (!modelState.localModels[modelId]) {
+    modelState.localModels[modelId] = { status: 'unknown', progress: null };
+  }
+  modelState.localModels[modelId].status = 'checking';
 
-  modelState.whisper.status = whisperReady ? 'ready' : 'missing';
-  modelState.cleanup.status = cleanupReady ? 'ready' : 'missing';
+  const ready = await invoke<boolean>('check_local_model', { modelId }).catch(() => false);
+  modelState.localModels[modelId].status = ready ? 'ready' : 'missing';
+}
+
+export async function downloadLocalModel(modelId: string) {
+  if (!modelState.localModels[modelId]) {
+    modelState.localModels[modelId] = { status: 'unknown', progress: null };
+  }
+  if (modelState.localModels[modelId].status === 'downloading') return;
+
+  modelState.localModels[modelId].status = 'downloading';
+  modelState.localModels[modelId].progress = 0;
+
+  const unlisten = await listen<{ modelId: string; downloaded: number; total: number }>('local-model-progress', (event) => {
+    const { modelId: id, downloaded, total } = event.payload;
+    if (modelState.localModels[id]) {
+      modelState.localModels[id].progress = total > 0 ? Math.round((downloaded / total) * 100) : 0;
+    }
+  });
+
+  try {
+    await invoke('download_local_model', { modelId });
+    modelState.localModels[modelId].status = 'ready';
+  } catch (e) {
+    console.error(`[ModelManager] Download failed for ${modelId}:`, e);
+    modelState.localModels[modelId].status = 'missing';
+  } finally {
+    unlisten();
+    modelState.localModels[modelId].progress = null;
+  }
 }
 
 export async function downloadWhisperModel() {
@@ -48,24 +95,34 @@ export async function downloadWhisperModel() {
   }
 }
 
-export async function downloadCleanupModel() {
-  if (modelState.cleanup.status === 'downloading') return;
-  modelState.cleanup.status = 'downloading';
-  modelState.cleanup.progress = 0;
+const EMBEDDING_MODEL_ID = 'snowflake-arctic-embed-110m';
 
-  const unlisten = await listen<{ downloaded: number; total: number }>('cleanup-model-progress', (event) => {
-    const { downloaded, total } = event.payload;
-    modelState.cleanup.progress = total > 0 ? Math.round((downloaded / total) * 100) : 0;
-  });
+export function getEmbeddingModel(): ModelEntry {
+  return modelState.localModels[EMBEDDING_MODEL_ID] ?? { status: 'unknown', progress: null };
+}
 
-  try {
-    await invoke('download_cleanup_model');
-    modelState.cleanup.status = 'ready';
-  } catch (e) {
-    console.error('[ModelManager] Cleanup download failed:', e);
-    modelState.cleanup.status = 'missing';
-  } finally {
-    unlisten();
-    modelState.cleanup.progress = null;
+export async function checkEmbeddingModel() {
+  return checkLocalModel(EMBEDDING_MODEL_ID);
+}
+
+export async function downloadEmbeddingModel() {
+  return downloadLocalModel(EMBEDDING_MODEL_ID);
+}
+
+export async function ensureEmbeddingModel(): Promise<boolean> {
+  const entry = getEmbeddingModel();
+  if (entry.status === 'ready') return true;
+  if (entry.status === 'unknown') await checkEmbeddingModel();
+  const updated = getEmbeddingModel();
+  if (updated.status === 'ready') return true;
+  if (updated.status === 'missing') {
+    await downloadEmbeddingModel();
+    return getEmbeddingModel().status === 'ready';
   }
+  return false;
+}
+
+// Backward compat
+export async function downloadCleanupModel() {
+  return downloadLocalModel(settings.localModelId);
 }

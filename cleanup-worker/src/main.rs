@@ -23,11 +23,22 @@ Return ONLY the cleaned-up note. No commentary, no preamble, no explanation."#;
 #[derive(Deserialize)]
 struct Request {
     model_path: String,
+    #[serde(default)]
     text: String,
     #[serde(default)]
     mode: Option<String>,
     #[serde(default)]
     entity_types: Option<Vec<String>>,
+    #[serde(default)]
+    chat_template: Option<String>,
+    #[serde(default)]
+    n_ctx: Option<u32>,
+    #[serde(default)]
+    texts: Option<Vec<String>>,
+    #[serde(default)]
+    system_prompt: Option<String>,
+    #[serde(default)]
+    is_query: Option<bool>,
 }
 
 #[derive(Serialize)]
@@ -55,10 +66,22 @@ fn main() {
         }
     };
 
-    // Run inference on a thread with a large stack (GGML graph traversal needs it)
+    // Run on a thread with a large stack (GGML graph traversal needs it)
+    let chat_template = req.chat_template.unwrap_or_else(|| "gemma3".to_string());
+    let n_ctx = req.n_ctx.unwrap_or(2048);
+    let is_embed = req.mode.as_deref() == Some("embed");
+
     let handle = std::thread::Builder::new()
         .stack_size(64 * 1024 * 1024)
-        .spawn(move || run_inference(&req.model_path, &req.text, req.mode.as_deref(), req.entity_types.as_deref()))
+        .spawn(move || {
+            if is_embed {
+                let texts = req.texts.unwrap_or_else(|| vec![req.text.clone()]);
+                let is_query = req.is_query.unwrap_or(false);
+                run_embedding(&req.model_path, &texts, n_ctx, is_query)
+            } else {
+                run_inference(&req.model_path, &req.text, req.mode.as_deref(), req.entity_types.as_deref(), &chat_template, n_ctx, req.system_prompt.as_deref())
+            }
+        })
         .expect("Failed to spawn inference thread");
 
     let result = handle.join().unwrap_or_else(|_| Err("Inference thread panicked".to_string()));
@@ -103,7 +126,112 @@ Where each category contains an array of objects with "name", "label", and "desc
     )
 }
 
-fn run_inference(model_path: &str, note_text: &str, mode: Option<&str>, entity_types: Option<&[String]>) -> Result<String, String> {
+fn format_prompt(template: &str, system: &str, user: &str) -> String {
+    match template {
+        "llama3" => format!(
+            "<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\n{}<|eot_id|><|start_header_id|>user<|end_header_id|>\n\n{}<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n",
+            system, user
+        ),
+        "chatml" => format!(
+            "<|im_start|>system\n{}<|im_end|>\n<|im_start|>user\n{}<|im_end|>\n<|im_start|>assistant\n",
+            system, user
+        ),
+        // Default: gemma3
+        _ => format!(
+            "<start_of_turn>user\n{}\n\n{}<end_of_turn>\n<start_of_turn>model\n",
+            system, user
+        ),
+    }
+}
+
+fn stop_token(template: &str) -> &str {
+    match template {
+        "llama3" => "<|eot_id|>",
+        "chatml" => "<|im_end|>",
+        _ => "<end_of_turn>",
+    }
+}
+
+fn run_embedding(model_path: &str, texts: &[String], n_ctx: u32, is_query: bool) -> Result<String, String> {
+    use llama_cpp_2::context::params::{LlamaContextParams, LlamaPoolingType};
+    use llama_cpp_2::llama_backend::LlamaBackend;
+    use llama_cpp_2::llama_batch::LlamaBatch;
+    use llama_cpp_2::model::params::LlamaModelParams;
+    use llama_cpp_2::model::{AddBos, LlamaModel};
+
+    eprintln!("[cleanup-worker] Embedding mode: {} texts, is_query={}", texts.len(), is_query);
+    let backend = LlamaBackend::init().map_err(|e| format!("Backend init failed: {}", e))?;
+
+    let model_params = LlamaModelParams::default().with_n_gpu_layers(99);
+    let model = LlamaModel::load_from_file(&backend, model_path, &model_params)
+        .map_err(|e| format!("Failed to load model: {}", e))?;
+    eprintln!("[cleanup-worker] Embedding model loaded");
+
+    let ctx_params = LlamaContextParams::default()
+        .with_n_ctx(NonZeroU32::new(n_ctx))
+        .with_n_batch(512)
+        .with_embeddings(true)
+        .with_pooling_type(LlamaPoolingType::Cls);
+
+    let mut all_embeddings: Vec<Vec<f32>> = Vec::new();
+
+    // Snowflake Arctic Embed requires a query prefix for queries but not for documents
+    let query_prefix = "Represent this sentence for searching relevant passages: ";
+
+    for (i, text) in texts.iter().enumerate() {
+        let mut ctx = model
+            .new_context(&backend, ctx_params.clone())
+            .map_err(|e| format!("Failed to create context: {}", e))?;
+
+        let input_text = if is_query {
+            format!("{}{}", query_prefix, text)
+        } else {
+            text.clone()
+        };
+
+        let tokens = model
+            .str_to_token(&input_text, AddBos::Always)
+            .map_err(|e| format!("Tokenization failed: {}", e))?;
+
+        eprintln!("[cleanup-worker] Text {}/{}: {} tokens", i + 1, texts.len(), tokens.len());
+
+        let batch_size = 512;
+        let mut batch = LlamaBatch::new(batch_size, 1);
+        let total = tokens.len();
+
+        for chunk_start in (0..total).step_by(batch_size) {
+            batch.clear();
+            let chunk_end = (chunk_start + batch_size).min(total);
+            for j in chunk_start..chunk_end {
+                let is_last = j == total - 1;
+                batch
+                    .add(tokens[j], j as i32, &[0], is_last)
+                    .map_err(|e| format!("Batch add failed: {}", e))?;
+            }
+            ctx.decode(&mut batch)
+                .map_err(|e| format!("Decode failed: {}", e))?;
+        }
+
+        // Extract embeddings for the last token (sequence 0)
+        let embeddings = ctx.embeddings_seq_ith(0)
+            .map_err(|e| format!("Failed to get embeddings: {}", e))?;
+
+        // Normalize the embedding vector (L2 norm)
+        let norm: f32 = embeddings.iter().map(|x| x * x).sum::<f32>().sqrt();
+        let normalized: Vec<f32> = if norm > 0.0 {
+            embeddings.iter().map(|x| x / norm).collect()
+        } else {
+            embeddings.to_vec()
+        };
+
+        all_embeddings.push(normalized);
+    }
+
+    Ok(serde_json::to_string(&all_embeddings)
+        .map_err(|e| format!("JSON serialization failed: {}", e))?)
+}
+
+fn run_inference(model_path: &str, note_text: &str, mode: Option<&str>, entity_types: Option<&[String]>, chat_template: &str, n_ctx: u32, custom_system_prompt: Option<&str>) -> Result<String, String> {
     use llama_cpp_2::context::params::LlamaContextParams;
     use llama_cpp_2::llama_backend::LlamaBackend;
     use llama_cpp_2::llama_batch::LlamaBatch;
@@ -122,7 +250,7 @@ fn run_inference(model_path: &str, note_text: &str, mode: Option<&str>, entity_t
     eprintln!("[cleanup-worker] Model loaded successfully");
 
     let ctx_params = LlamaContextParams::default()
-        .with_n_ctx(NonZeroU32::new(2048))
+        .with_n_ctx(NonZeroU32::new(n_ctx))
         .with_n_batch(512);
 
     let mut ctx = model
@@ -130,22 +258,23 @@ fn run_inference(model_path: &str, note_text: &str, mode: Option<&str>, entity_t
         .map_err(|e| format!("Failed to create context: {}", e))?;
 
     // Select system prompt based on mode
-    let system_prompt = match mode {
-        Some("extract") => {
-            let types = entity_types.unwrap_or(&[]);
-            if types.is_empty() {
-                return Err("Entity types required for extract mode".to_string());
+    let system_prompt = if let Some(custom) = custom_system_prompt {
+        custom.to_string()
+    } else {
+        match mode {
+            Some("extract") => {
+                let types = entity_types.unwrap_or(&[]);
+                if types.is_empty() {
+                    return Err("Entity types required for extract mode".to_string());
+                }
+                build_extract_prompt(types)
             }
-            build_extract_prompt(types)
+            _ => SYSTEM_PROMPT.to_string(),
         }
-        _ => SYSTEM_PROMPT.to_string(),
     };
 
-    // Format prompt with Gemma 3 chat template (system prompt goes in user turn)
-    let prompt = format!(
-        "<start_of_turn>user\n{}\n\n{}<end_of_turn>\n<start_of_turn>model\n",
-        system_prompt, note_text
-    );
+    // Format prompt with the appropriate chat template
+    let prompt = format_prompt(chat_template, &system_prompt, note_text);
 
     let tokens = model
         .str_to_token(&prompt, AddBos::Always)
@@ -195,10 +324,15 @@ fn run_inference(model_path: &str, note_text: &str, mode: Option<&str>, entity_t
             .token_to_piece(new_token, &mut decoder, false, None)
             .map_err(|e| format!("Token to string failed: {}", e))?;
 
-        // Stop at end-of-turn marker
-        if output.ends_with("<end_of_tur") || token_str.contains("<end_of_turn>") {
-            if let Some(pos) = output.rfind("<end_of_tur") {
-                output.truncate(pos);
+        // Stop at end-of-turn marker for the active template
+        let stop = stop_token(chat_template);
+        if token_str.contains(stop) || (stop.len() > 3 && output.ends_with(&stop[..stop.len()-1])) {
+            // Truncate any partial stop token from output
+            for trim_len in (1..stop.len()).rev() {
+                if output.ends_with(&stop[..trim_len]) {
+                    output.truncate(output.len() - trim_len);
+                    break;
+                }
             }
             break;
         }

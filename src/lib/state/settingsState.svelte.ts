@@ -16,6 +16,8 @@ export const accentColors: Record<AccentColor, { accent: string; hover: string }
   red: { accent: '#ef4444', hover: '#dc2626' },
 };
 
+export type AIProvider = 'local' | 'cloud';
+
 export interface Settings {
   theme: Theme;
   accentColor: AccentColor;
@@ -24,6 +26,9 @@ export interface Settings {
   spellCheck: boolean;
   globalHotkey: string;
   sidebarWidth: number;
+  aiProvider: AIProvider;
+  localModelId: string;
+  claudeApiKey: string;
 }
 
 const defaults: Settings = {
@@ -34,6 +39,9 @@ const defaults: Settings = {
   spellCheck: true,
   globalHotkey: 'CommandOrControl+Shift+G',
   sidebarWidth: 256,
+  aiProvider: 'local',
+  localModelId: 'gemma3-12b',
+  claudeApiKey: '',
 };
 
 export const settings = $state<Settings>({ ...defaults });

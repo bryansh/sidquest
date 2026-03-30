@@ -1,8 +1,12 @@
+mod claude;
 mod cleanup;
 mod dictation;
+mod embed;
 mod export;
 mod extract;
 mod images;
+mod models;
+mod prompts;
 mod worker;
 
 use tauri::Manager;
@@ -23,11 +27,18 @@ pub fn run() {
             dictation::download_whisper_model,
             cleanup::check_cleanup_model,
             cleanup::download_cleanup_model,
+            cleanup::check_local_model,
+            cleanup::download_local_model,
             cleanup::cleanup_note,
             images::save_image,
             export::save_export_file,
             export::save_export_file_binary,
             extract::extract_entities,
+            models::get_available_models,
+            models::get_embedding_model_info,
+            claude::test_claude_api,
+            embed::embed_texts,
+            embed::rag_chat,
         ])
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())

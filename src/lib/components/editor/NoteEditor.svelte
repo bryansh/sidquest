@@ -13,7 +13,7 @@
   import { save } from '@tauri-apps/plugin-dialog';
   import { noteState } from '$lib/state/noteState.svelte';
   import { gameState } from '$lib/state/gameState.svelte';
-  import { modelState, checkModels, downloadWhisperModel, downloadCleanupModel } from '$lib/state/modelState.svelte';
+  import { modelState, checkModels, downloadWhisperModel, downloadLocalModel, getActiveLocalModel } from '$lib/state/modelState.svelte';
   import { settings } from '$lib/state/settingsState.svelte';
   import { uiState } from '$lib/state/uiState.svelte';
   import FindBar from './FindBar.svelte';
@@ -90,12 +90,17 @@
   async function cleanupNote() {
     if (cleaningUp || !editorInstance) return;
 
-    // Download cleanup model if missing
-    if (modelState.cleanup.status === 'missing') {
-      await downloadCleanupModel();
+    if (settings.aiProvider === 'local') {
+      const localModel = getActiveLocalModel();
+      if (localModel.status === 'missing' || localModel.status === 'unknown') {
+        await downloadLocalModel(settings.localModelId);
+        return;
+      }
+      if (localModel.status !== 'ready') return;
+    } else if (!settings.claudeApiKey) {
+      console.warn('[Cleanup] No Claude API key configured');
       return;
     }
-    if (modelState.cleanup.status !== 'ready') return;
 
     cleaningUp = true;
     try {
@@ -104,7 +109,12 @@
 
       if (!text.trim()) return;
 
-      const raw = await invoke<string>('cleanup_note', { text });
+      const raw = await invoke<string>('cleanup_note', {
+        text,
+        provider: settings.aiProvider,
+        modelId: settings.localModelId,
+        apiKey: settings.aiProvider === 'cloud' ? settings.claudeApiKey : null,
+      });
       const cleaned = restoreWikilinks(raw, wikilinkMap);
       const newDoc = deserialize(cleaned, wikilinkMap);
 
@@ -341,12 +351,12 @@
     </button>
     <button
       onclick={cleanupNote}
-      disabled={cleaningUp || modelState.cleanup.status === 'downloading' || modelState.cleanup.status === 'checking'}
-      title={modelState.cleanup.status === 'missing' ? 'Download cleanup model' : modelState.cleanup.status === 'downloading' ? 'Downloading...' : 'AI cleanup: organize and tidy this note'}
-      class="px-2 py-1 rounded transition-colors cursor-pointer disabled:cursor-wait {cleaningUp || modelState.cleanup.status === 'downloading' ? 'text-[var(--color-accent)]' : modelState.cleanup.status === 'missing' ? 'text-[var(--color-text-muted)] opacity-50 hover:opacity-100 hover:bg-[var(--color-surface-hover)]' : 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)]'}"
+      disabled={cleaningUp || (settings.aiProvider === 'local' && (getActiveLocalModel().status === 'downloading' || getActiveLocalModel().status === 'checking'))}
+      title={settings.aiProvider === 'local' && (getActiveLocalModel().status === 'missing' || getActiveLocalModel().status === 'unknown') ? 'Download AI model' : settings.aiProvider === 'local' && getActiveLocalModel().status === 'downloading' ? 'Downloading...' : settings.aiProvider === 'cloud' && !settings.claudeApiKey ? 'Configure API key in settings' : 'AI cleanup: organize and tidy this note'}
+      class="px-2 py-1 rounded transition-colors cursor-pointer disabled:cursor-wait {cleaningUp || (settings.aiProvider === 'local' && getActiveLocalModel().status === 'downloading') ? 'text-[var(--color-accent)]' : settings.aiProvider === 'local' && (getActiveLocalModel().status === 'missing' || getActiveLocalModel().status === 'unknown') ? 'text-[var(--color-text-muted)] opacity-50 hover:opacity-100 hover:bg-[var(--color-surface-hover)]' : 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)]'}"
       type="button"
     >
-      {#if modelState.cleanup.status === 'missing'}
+      {#if settings.aiProvider === 'local' && (getActiveLocalModel().status === 'missing' || getActiveLocalModel().status === 'unknown')}
         &#10024;&#8595;
       {:else}
         &#10024;
@@ -398,8 +408,8 @@
       <span>{exportStatus}</span>
     {:else if modelState.whisper.status === 'downloading'}
       <span class="text-[var(--color-accent)] animate-pulse">Downloading dictation model: {modelState.whisper.progress ?? 0}%</span>
-    {:else if modelState.cleanup.status === 'downloading'}
-      <span class="text-[var(--color-accent)] animate-pulse">Downloading cleanup model: {modelState.cleanup.progress ?? 0}%</span>
+    {:else if settings.aiProvider === 'local' && getActiveLocalModel().status === 'downloading'}
+      <span class="text-[var(--color-accent)] animate-pulse">Downloading AI model: {getActiveLocalModel().progress ?? 0}%</span>
     {:else if cleaningUp}
       <span class="text-[var(--color-accent)] animate-pulse">Cleaning up...</span>
     {:else if saveStatus === 'saving'}
