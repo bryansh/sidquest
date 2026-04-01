@@ -5,6 +5,26 @@ use crate::models::get_model_by_id;
 use crate::prompts;
 use crate::worker::run_worker;
 
+/// Resolve model filename, chat template, and context window.
+/// Uses explicit params if provided (custom models), otherwise looks up by ID (built-in models).
+pub fn resolve_model_info(model_id: &str, filename: Option<&str>, chat_template: Option<&str>, context_window: Option<u32>) -> Result<(String, String, u32), String> {
+    if let Some(model) = get_model_by_id(model_id) {
+        Ok((
+            model.filename.to_string(),
+            chat_template.unwrap_or(model.chat_template).to_string(),
+            context_window.unwrap_or(model.context_window),
+        ))
+    } else if let Some(fname) = filename {
+        Ok((
+            fname.to_string(),
+            chat_template.unwrap_or("gemma3").to_string(),
+            context_window.unwrap_or(4096),
+        ))
+    } else {
+        Err(format!("Unknown model: {}. Custom models require filename parameter.", model_id))
+    }
+}
+
 fn model_path(app: &AppHandle, model_id: &str) -> Result<std::path::PathBuf, String> {
     let model = get_model_by_id(model_id)
         .ok_or_else(|| format!("Unknown model: {}", model_id))?;
@@ -160,6 +180,9 @@ pub async fn cleanup_note(
     text: String,
     provider: String,
     model_id: String,
+    filename: Option<String>,
+    chat_template: Option<String>,
+    context_window: Option<u32>,
     api_key: Option<String>,
 ) -> Result<String, String> {
     if provider == "cloud" {
@@ -168,17 +191,18 @@ pub async fn cleanup_note(
         return claude::claude_inference(&key, &system, &text).await;
     }
 
-    // Local model
-    let model = get_model_by_id(&model_id)
-        .ok_or_else(|| format!("Unknown model: {}", model_id))?;
-    let path = model_path(&app, &model_id)?;
+    // Resolve model info: use explicit params if provided, otherwise look up by ID
+    let (resolved_filename, resolved_template, resolved_ctx) = resolve_model_info(&model_id, filename.as_deref(), chat_template.as_deref(), context_window)?;
+
+    let dir = app.path().app_data_dir().map_err(|e| format!("No app data dir: {}", e))?;
+    let path = dir.join(&resolved_filename);
     if !path.exists() {
         return Err("Model not downloaded".to_string());
     }
 
     let model_path_str = path.to_string_lossy().to_string();
-    let chat_template = model.chat_template.to_string();
-    let context_window = model.context_window;
+    let chat_template = resolved_template;
+    let context_window = resolved_ctx;
 
     tokio::task::spawn_blocking(move || {
         let request = serde_json::json!({

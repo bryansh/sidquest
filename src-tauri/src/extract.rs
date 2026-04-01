@@ -1,7 +1,7 @@
 use tauri::Manager;
 
 use crate::claude;
-use crate::models::get_model_by_id;
+use crate::cleanup::resolve_model_info;
 use crate::prompts;
 use crate::worker::run_worker;
 
@@ -12,6 +12,9 @@ pub async fn extract_entities(
     entity_types: Vec<String>,
     provider: String,
     model_id: String,
+    filename: Option<String>,
+    chat_template: Option<String>,
+    context_window: Option<u32>,
     api_key: Option<String>,
 ) -> Result<String, String> {
     if provider == "cloud" {
@@ -21,22 +24,16 @@ pub async fn extract_entities(
         return claude::claude_inference(&key, &system, &prompt).await;
     }
 
-    // Local model
-    let model = get_model_by_id(&model_id)
-        .ok_or_else(|| format!("Unknown model: {}", model_id))?;
-    let data_dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| format!("No app data dir: {}", e))?;
-    let model_path = data_dir.join(model.filename);
+    let (resolved_filename, resolved_template, resolved_ctx) = resolve_model_info(&model_id, filename.as_deref(), chat_template.as_deref(), context_window)?;
+
+    let dir = app.path().app_data_dir().map_err(|e| format!("No app data dir: {}", e))?;
+    let model_path = dir.join(&resolved_filename);
 
     if !model_path.exists() {
         return Err("Model not downloaded. Please download it first.".into());
     }
 
     let model_path_str = model_path.to_string_lossy().to_string();
-    let chat_template = model.chat_template.to_string();
-    let context_window = model.context_window;
 
     tokio::task::spawn_blocking(move || {
         let request = serde_json::json!({
@@ -44,8 +41,8 @@ pub async fn extract_entities(
             "text": text,
             "mode": "extract",
             "entity_types": entity_types,
-            "chat_template": chat_template,
-            "n_ctx": context_window,
+            "chat_template": resolved_template,
+            "n_ctx": resolved_ctx,
         });
         run_worker("cleanup-worker", &request)
     })

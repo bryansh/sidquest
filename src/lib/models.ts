@@ -25,6 +25,16 @@ export function formatBytes(bytes: number): string {
 	return `${bytes} B`;
 }
 
+/** Get extra params needed for custom model invoke calls */
+export function getModelInvokeParams(model: LocalModelDef | undefined): Record<string, string | number | null> {
+	if (!model || !model.custom) return {};
+	return {
+		filename: model.filename,
+		chatTemplate: model.chat_template,
+		contextWindow: model.context_window,
+	};
+}
+
 export function filenameFromUrl(url: string): string {
 	try {
 		const path = new URL(url).pathname;

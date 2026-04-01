@@ -1,7 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { gameState } from './gameState.svelte';
 import { settings } from './settingsState.svelte';
-import { ensureEmbeddingModel, getActiveLocalModel } from './modelState.svelte';
+import { ensureEmbeddingModel, getActiveLocalModel, getActiveModelParams } from './modelState.svelte';
 import { getStaleNotes, upsertEmbedding, getEmbeddings, getEmbeddingCount, deleteEmbeddingsForGame, recreateEmbeddingsTable, type NoteEmbedding } from '$lib/db/local/queries/embeddings';
 
 export interface ChatMessage {
@@ -216,6 +216,7 @@ export async function sendMessage(query: string) {
 			query,
 			provider: settings.aiProvider,
 			modelId: settings.localModelId,
+			...getActiveModelParams(),
 			apiKey: settings.aiProvider === 'cloud' ? settings.claudeApiKey : null,
 		});
 

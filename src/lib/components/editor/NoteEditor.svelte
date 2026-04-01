@@ -15,6 +15,7 @@
   import { gameState } from '$lib/state/gameState.svelte';
   import { modelState, checkModels, downloadWhisperModel, downloadLocalModel, getActiveLocalModel } from '$lib/state/modelState.svelte';
   import { settings } from '$lib/state/settingsState.svelte';
+  import { getActiveModelParams } from '$lib/state/modelState.svelte';
   import { uiState } from '$lib/state/uiState.svelte';
   import FindBar from './FindBar.svelte';
   import ProposedChangesModal from '../modals/ProposedChangesModal.svelte';
@@ -113,6 +114,7 @@
         text,
         provider: settings.aiProvider,
         modelId: settings.localModelId,
+        ...getActiveModelParams(),
         apiKey: settings.aiProvider === 'cloud' ? settings.claudeApiKey : null,
       });
       const cleaned = restoreWikilinks(raw, wikilinkMap);

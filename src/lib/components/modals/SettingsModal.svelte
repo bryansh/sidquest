@@ -2,7 +2,7 @@
   import { Dialog } from 'bits-ui';
   import { invoke } from '@tauri-apps/api/core';
   import { settings, updateSettings, accentColors, formatShortcut, displayShortcut, type Theme, type AccentColor, type AIProvider } from '$lib/state/settingsState.svelte';
-  import { modelState, checkLocalModel, downloadLocalModel, deleteLocalModel, loadCustomModels, saveCustomModel, removeCustomModel, downloadCustomModel, checkCustomModel } from '$lib/state/modelState.svelte';
+  import { modelState, checkLocalModel, downloadLocalModel, deleteLocalModel, loadCustomModels, saveCustomModel, removeCustomModel, downloadCustomModel, checkCustomModel, setCachedCustomModels } from '$lib/state/modelState.svelte';
   import { type LocalModelDef, formatBytes, filenameFromUrl, CHAT_TEMPLATES } from '$lib/models';
   import { onMount } from 'svelte';
 
@@ -48,6 +48,7 @@
       availableModels = await invoke<LocalModelDef[]>('get_available_models');
       allModels = await invoke<LocalModelDef[]>('get_all_models');
       customModels = await loadCustomModels();
+      setCachedCustomModels(customModels);
       // Add custom generation models to the picker
       const customGenModels = customModels.filter(m => m.model_type === 'generation');
       availableModels = [...availableModels, ...customGenModels];
@@ -81,6 +82,7 @@
     };
     await saveCustomModel(model);
     customModels = await loadCustomModels();
+    setCachedCustomModels(customModels);
     availableModels = [...availableModels, model];
 
     // Close form and reset
@@ -97,6 +99,7 @@
   async function handleRemoveCustomModel(modelId: string) {
     await removeCustomModel(modelId);
     customModels = await loadCustomModels();
+    setCachedCustomModels(customModels);
     availableModels = availableModels.filter(m => m.id !== modelId);
     if (settings.localModelId === modelId) {
       updateSettings({ localModelId: 'gemma3-12b' });

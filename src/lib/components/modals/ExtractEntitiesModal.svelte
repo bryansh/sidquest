@@ -6,6 +6,7 @@
   import { sessionState, updateSessionNoteContent } from '$lib/state/sessionState.svelte';
   import { insertWikilinksInDoc, type WikilinkTarget } from '$lib/tiptapTransform';
   import { authState } from '$lib/auth/authState.svelte';
+  import { getActiveModelParams } from '$lib/state/modelState.svelte';
   import { serialize } from '../editor/cleanupRoundtrip';
   import { settings } from '$lib/state/settingsState.svelte';
 
@@ -65,6 +66,7 @@
         entityTypes: typeNames,
         provider: settings.aiProvider,
         modelId: settings.localModelId,
+        ...getActiveModelParams(),
         apiKey: settings.aiProvider === 'cloud' ? settings.claudeApiKey : null,
       });
 

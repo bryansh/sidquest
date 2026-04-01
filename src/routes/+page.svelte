@@ -9,6 +9,7 @@
   import { getLocalDb } from '$lib/db/local/sqlite';
   import { hydrateIfNeeded } from '$lib/db/sync/hydrate';
   import { initSyncService } from '$lib/state/syncState.svelte';
+  import { loadCustomModels, setCachedCustomModels } from '$lib/state/modelState.svelte';
   import SignIn from '$lib/components/auth/SignIn.svelte';
   import TitleBar from '$lib/components/layout/TitleBar.svelte';
   import Sidebar from '$lib/components/layout/Sidebar.svelte';
@@ -68,6 +69,7 @@
       if (authState.user) onAuthenticated(authState.user.id);
     });
     loadSettings();
+    loadCustomModels().then(setCachedCustomModels);
 
     const handleKeydown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {

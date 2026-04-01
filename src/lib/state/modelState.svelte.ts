@@ -22,6 +22,27 @@ export function getActiveLocalModel(): ModelEntry {
   return modelState.localModels[id] ?? { status: 'unknown', progress: null };
 }
 
+/** Cache of custom model defs for invoke param resolution */
+let cachedCustomModels: LocalModelDef[] = [];
+
+export function setCachedCustomModels(models: LocalModelDef[]) {
+  cachedCustomModels = models;
+}
+
+/** Get invoke params for the currently selected model (includes custom model fields) */
+export function getActiveModelParams(): Record<string, any> {
+  const id = settings.localModelId;
+  const custom = cachedCustomModels.find(m => m.id === id);
+  if (custom) {
+    return {
+      filename: custom.filename,
+      chatTemplate: custom.chat_template,
+      contextWindow: custom.context_window,
+    };
+  }
+  return {};
+}
+
 let whisperChecked = false;
 
 export async function checkModels() {
