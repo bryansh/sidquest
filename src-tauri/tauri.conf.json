@@ -4,9 +4,9 @@
   "version": "0.1.0",
   "identifier": "com.sidquest.app",
   "build": {
-    "beforeDevCommand": "cargo build -p cleanup-worker -p whisper-worker && npm run dev",
+    "beforeDevCommand": "cargo build -p cleanup-worker -p whisper-worker && cp target/debug/cleanup-worker src-tauri/binaries/cleanup-worker-aarch64-apple-darwin && cp target/debug/whisper-worker src-tauri/binaries/whisper-worker-aarch64-apple-darwin && npm run dev",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "cargo build --release -p cleanup-worker -p whisper-worker && npm run build",
+    "beforeBuildCommand": "cargo build --release -p cleanup-worker -p whisper-worker && cp target/release/cleanup-worker src-tauri/binaries/cleanup-worker-aarch64-apple-darwin && cp target/release/whisper-worker src-tauri/binaries/whisper-worker-aarch64-apple-darwin && npm run build",
     "frontendDist": "../build"
   },
   "app": {
@@ -38,6 +38,10 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "externalBin": [
+      "binaries/cleanup-worker",
+      "binaries/whisper-worker"
+    ],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

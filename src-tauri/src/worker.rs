@@ -13,12 +13,23 @@ fn worker_binary_path(name: &str) -> Result<std::path::PathBuf, String> {
     let exe = std::env::current_exe()
         .map_err(|e| format!("Cannot find current exe: {}", e))?;
     let dir = exe.parent().ok_or("No parent dir for executable")?;
+
+    // Try exact name first (dev builds)
     let worker = dir.join(name);
     if worker.exists() {
         return Ok(worker);
     }
 
-    Err(format!("{} binary not found in {}", name, dir.display()))
+    // Try with target triple suffix (Tauri externalBin bundles)
+    let target = std::env::consts::ARCH;
+    let os = std::env::consts::OS;
+    let suffixed = format!("{}-{}-apple-{}", name, target, os);
+    let worker = dir.join(&suffixed);
+    if worker.exists() {
+        return Ok(worker);
+    }
+
+    Err(format!("{} binary not found in {} (tried {} and {})", name, dir.display(), name, suffixed))
 }
 
 /// Spawn a worker binary, send JSON on stdin, read JSON response from stdout.
