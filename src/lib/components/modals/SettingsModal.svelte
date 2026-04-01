@@ -317,8 +317,8 @@
                 {#if model.model_type === 'generation' && settings.aiProvider === 'local'}
                   <!-- svelte-ignore a11y_no_static_element_interactions -->
                   <button
-                    onclick={() => updateSettings({ localModelId: model.id })}
-                    class="w-3 h-3 rounded-full border-2 shrink-0 {isActiveGen ? 'border-[var(--color-accent)] bg-[var(--color-accent)]' : 'border-[var(--color-border)]'}"
+                    onclick={() => { if (status === 'ready') updateSettings({ localModelId: model.id }); }}
+                    class="w-3 h-3 rounded-full border-2 shrink-0 {isActiveGen ? 'border-[var(--color-accent)] bg-[var(--color-accent)]' : status === 'ready' ? 'border-[var(--color-border)] hover:border-[var(--color-text-muted)]' : 'border-[var(--color-border)] opacity-30 cursor-not-allowed'}"
                   ></button>
                 {:else}
                   <span class="w-3 h-3 shrink-0"></span>
