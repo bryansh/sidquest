@@ -6,6 +6,8 @@ export interface LocalModelDef {
 	size_bytes: number;
 	context_window: number;
 	chat_template: string;
+	model_type: string;
+	embedding_dim: number | null;
 }
 
 export type AIProvider = 'local' | 'cloud';

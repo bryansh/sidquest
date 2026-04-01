@@ -2,7 +2,7 @@
   import { Dialog } from 'bits-ui';
   import { invoke } from '@tauri-apps/api/core';
   import { settings, updateSettings, accentColors, formatShortcut, displayShortcut, type Theme, type AccentColor, type AIProvider } from '$lib/state/settingsState.svelte';
-  import { modelState, checkLocalModel, downloadLocalModel } from '$lib/state/modelState.svelte';
+  import { modelState, checkLocalModel, downloadLocalModel, deleteLocalModel } from '$lib/state/modelState.svelte';
   import { type LocalModelDef, formatBytes } from '$lib/models';
   import { onMount } from 'svelte';
 
@@ -35,11 +35,13 @@
   let connectionResult = $state<{ ok: boolean; message: string } | null>(null);
   let showApiKey = $state(false);
 
+  let allModels = $state<LocalModelDef[]>([]);
+
   onMount(async () => {
     try {
       availableModels = await invoke<LocalModelDef[]>('get_available_models');
-      // Check status of each model
-      for (const m of availableModels) {
+      allModels = await invoke<LocalModelDef[]>('get_all_models');
+      for (const m of allModels) {
         await checkLocalModel(m.id);
       }
     } catch (e) {
@@ -87,7 +89,7 @@
   <Dialog.Portal>
     <Dialog.Overlay class="fixed inset-0 bg-black/50 z-50" />
     <Dialog.Content
-      class="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full max-w-md rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] p-6 shadow-xl"
+      class="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full max-w-md max-h-[85vh] rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] p-6 shadow-xl overflow-y-auto"
     >
       <Dialog.Title class="text-lg font-semibold mb-6">Settings</Dialog.Title>
 
@@ -208,11 +210,9 @@
             ></span>
           </button>
         </div>
-        <!-- AI Model -->
+        <!-- AI Provider -->
         <div class="pt-3 border-t border-[var(--color-border)]">
-          <label class="text-xs font-medium text-[var(--color-text-muted)] uppercase tracking-wide mb-2 block">AI Model</label>
-
-          <!-- Provider Toggle -->
+          <label class="text-xs font-medium text-[var(--color-text-muted)] uppercase tracking-wide mb-2 block">AI Provider</label>
           <div class="flex gap-2 mb-3">
             <button
               onclick={() => updateSettings({ aiProvider: 'local' })}
@@ -229,8 +229,7 @@
           </div>
 
           {#if settings.aiProvider === 'local'}
-            <!-- Local Model Selection -->
-            <div class="flex flex-col gap-2">
+            <div class="flex flex-col gap-2 mb-3">
               {#each availableModels as model}
                 {@const entry = modelState.localModels[model.id]}
                 {@const isSelected = settings.localModelId === model.id}
@@ -258,9 +257,7 @@
                         <button
                           onclick={(e: MouseEvent) => { e.stopPropagation(); downloadLocalModel(model.id); }}
                           class="text-xs px-2 py-0.5 rounded bg-[var(--color-accent)] text-white hover:bg-[var(--color-accent-hover)] transition-colors"
-                        >
-                          Download
-                        </button>
+                        >Download</button>
                       {:else}
                         <span class="text-xs text-[var(--color-text-muted)]">Not downloaded</span>
                       {/if}
@@ -272,50 +269,69 @@
               {/each}
             </div>
           {:else}
-            <!-- Claude API Key -->
-            <div class="flex flex-col gap-2">
+            <div class="flex flex-col gap-2 mb-3">
               <div class="flex gap-2">
                 <div class="flex-1 relative">
-                  {#if showApiKey}
-                    <input
-                      type="text"
-                      value={settings.claudeApiKey}
-                      oninput={(e) => { updateSettings({ claudeApiKey: (e.target as HTMLInputElement).value }); connectionResult = null; }}
-                      placeholder="sk-ant-..."
-                      class="w-full px-3 py-2 rounded text-sm border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent)]"
-                    />
-                  {:else}
-                    <input
-                      type="password"
-                      value={settings.claudeApiKey}
-                      oninput={(e) => { updateSettings({ claudeApiKey: (e.target as HTMLInputElement).value }); connectionResult = null; }}
-                      placeholder="sk-ant-..."
-                      class="w-full px-3 py-2 rounded text-sm border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent)]"
-                    />
-                  {/if}
+                  <input
+                    type={showApiKey ? 'text' : 'password'}
+                    value={settings.claudeApiKey}
+                    oninput={(e) => { updateSettings({ claudeApiKey: (e.target as HTMLInputElement).value }); connectionResult = null; }}
+                    placeholder="sk-ant-..."
+                    class="w-full px-3 py-2 rounded text-sm border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent)]"
+                  />
                   <button
                     onclick={() => showApiKey = !showApiKey}
                     class="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
-                  >
-                    {showApiKey ? 'Hide' : 'Show'}
-                  </button>
+                  >{showApiKey ? 'Hide' : 'Show'}</button>
                 </div>
                 <button
                   onclick={testClaudeKey}
                   disabled={!settings.claudeApiKey || testingConnection}
-                  class="px-3 py-2 rounded text-sm border border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-text-muted)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {testingConnection ? 'Testing...' : 'Test'}
-                </button>
+                  class="px-3 py-2 rounded text-sm border border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-text-muted)] transition-colors disabled:opacity-50"
+                >{testingConnection ? 'Testing...' : 'Test'}</button>
               </div>
               {#if connectionResult}
-                <p class="text-xs {connectionResult.ok ? 'text-green-400' : 'text-red-400'}">
-                  {connectionResult.message}
-                </p>
+                <p class="text-xs {connectionResult.ok ? 'text-green-400' : 'text-red-400'}">{connectionResult.message}</p>
               {/if}
               <p class="text-xs text-[var(--color-text-muted)]">Uses Claude Sonnet for cleanup, extraction, and chat</p>
             </div>
           {/if}
+        </div>
+
+        <!-- Model Manager -->
+        <div class="pt-3 border-t border-[var(--color-border)]">
+          <label class="text-xs font-medium text-[var(--color-text-muted)] uppercase tracking-wide mb-2 block">Downloaded Models</label>
+          <div class="flex flex-col gap-1.5">
+            {#each allModels as model}
+              {@const entry = modelState.localModels[model.id]}
+              {@const status = entry?.status ?? 'unknown'}
+              <div class="flex items-center justify-between px-2.5 py-2 rounded border border-[var(--color-border)] bg-[var(--color-bg)]">
+                <div class="min-w-0">
+                  <div class="flex items-center gap-2">
+                    <span class="text-sm text-[var(--color-text)]">{model.name}</span>
+                    <span class="text-[10px] px-1.5 py-0.5 rounded bg-[var(--color-surface-hover)] text-[var(--color-text-muted)]">{model.model_type}</span>
+                  </div>
+                  <span class="text-xs text-[var(--color-text-muted)]">{formatBytes(model.size_bytes)}</span>
+                </div>
+                <div class="flex items-center gap-2 shrink-0">
+                  {#if status === 'ready'}
+                    <span class="text-xs text-green-400">Ready</span>
+                    <button
+                      onclick={() => deleteLocalModel(model.id)}
+                      class="text-xs px-2 py-0.5 rounded border border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-red-400 hover:border-red-400 transition-colors"
+                    >Remove</button>
+                  {:else if status === 'downloading'}
+                    <span class="text-xs text-[var(--color-accent)] animate-pulse">{entry?.progress ?? 0}%</span>
+                  {:else}
+                    <button
+                      onclick={() => downloadLocalModel(model.id)}
+                      class="text-xs px-2 py-0.5 rounded bg-[var(--color-accent)] text-white hover:bg-[var(--color-accent-hover)] transition-colors"
+                    >Download</button>
+                  {/if}
+                </div>
+              </div>
+            {/each}
+          </div>
         </div>
       </div>
 

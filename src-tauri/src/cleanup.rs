@@ -22,6 +22,17 @@ pub fn check_local_model(app: AppHandle, model_id: String) -> Result<bool, Strin
 }
 
 #[tauri::command]
+pub async fn delete_local_model(app: AppHandle, model_id: String) -> Result<(), String> {
+    let path = model_path(&app, &model_id)?;
+    if path.exists() {
+        tokio::fs::remove_file(&path)
+            .await
+            .map_err(|e| format!("Failed to delete model: {}", e))?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
 pub async fn download_local_model(app: AppHandle, window: tauri::WebviewWindow, model_id: String) -> Result<(), String> {
     use futures_util::StreamExt;
 

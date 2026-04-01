@@ -73,6 +73,21 @@ export async function downloadLocalModel(modelId: string) {
   }
 }
 
+export async function deleteLocalModel(modelId: string) {
+  try {
+    await invoke('delete_local_model', { modelId });
+    if (modelState.localModels[modelId]) {
+      modelState.localModels[modelId].status = 'missing';
+    }
+    // Also handle whisper
+    if (modelId === 'whisper-base-en') {
+      modelState.whisper.status = 'missing';
+    }
+  } catch (e) {
+    console.error(`[ModelManager] Delete failed for ${modelId}:`, e);
+  }
+}
+
 export async function downloadWhisperModel() {
   if (modelState.whisper.status === 'downloading') return;
   modelState.whisper.status = 'downloading';

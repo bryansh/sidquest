@@ -38,6 +38,18 @@ pub static LOCAL_MODELS: &[ModelDef] = &[
     },
 ];
 
+pub static WHISPER_MODEL: &ModelDef = &ModelDef {
+    id: "whisper-base-en",
+    name: "Whisper Base (English)",
+    filename: "ggml-base.en.bin",
+    url: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin",
+    size_bytes: 148_000_000,
+    context_window: 0,
+    chat_template: "none",
+    model_type: "whisper",
+    embedding_dim: None,
+};
+
 pub static EMBEDDING_MODEL: &ModelDef = &ModelDef {
     id: "snowflake-arctic-embed-110m",
     name: "Snowflake Arctic Embed",
@@ -53,6 +65,7 @@ pub static EMBEDDING_MODEL: &ModelDef = &ModelDef {
 pub fn get_model_by_id(id: &str) -> Option<&'static ModelDef> {
     LOCAL_MODELS.iter().find(|m| m.id == id)
         .or_else(|| if EMBEDDING_MODEL.id == id { Some(EMBEDDING_MODEL) } else { None })
+        .or_else(|| if WHISPER_MODEL.id == id { Some(WHISPER_MODEL) } else { None })
 }
 
 pub fn get_embedding_model() -> &'static ModelDef {
@@ -62,6 +75,14 @@ pub fn get_embedding_model() -> &'static ModelDef {
 #[tauri::command]
 pub fn get_available_models() -> Vec<ModelDef> {
     LOCAL_MODELS.to_vec()
+}
+
+#[tauri::command]
+pub fn get_all_models() -> Vec<ModelDef> {
+    let mut all = LOCAL_MODELS.to_vec();
+    all.push(EMBEDDING_MODEL.clone());
+    all.push(WHISPER_MODEL.clone());
+    all
 }
 
 #[tauri::command]
