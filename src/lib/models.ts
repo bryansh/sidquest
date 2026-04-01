@@ -38,8 +38,8 @@ export function getModelInvokeParams(model: LocalModelDef | undefined): Record<s
 export function filenameFromUrl(url: string): string {
 	try {
 		const path = new URL(url).pathname;
-		return path.split('/').pop() ?? 'model.gguf';
+		return path.split('/').pop() || 'model.gguf';
 	} catch {
-		return url.split('/').pop() ?? 'model.gguf';
+		return url.split('/').pop() || 'model.gguf';
 	}
 }
