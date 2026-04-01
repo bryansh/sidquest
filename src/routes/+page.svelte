@@ -95,11 +95,13 @@
 </script>
 
 {#if authState.loading}
-  <div class="flex items-center justify-center h-screen w-screen bg-[var(--color-bg)]">
+  <div class="flex items-center justify-center h-screen w-screen bg-[var(--color-bg)]" data-tauri-drag-region>
     <p class="text-[var(--color-text-muted)]">Loading...</p>
   </div>
 {:else if !authState.user}
-  <SignIn />
+  <div class="h-screen w-screen bg-[var(--color-bg)]" data-tauri-drag-region>
+    <SignIn />
+  </div>
 {:else}
   <div class="flex flex-col h-screen w-screen bg-[var(--color-bg)] overflow-hidden">
     <TitleBar onOpenSettings={() => showSettings = true} />
