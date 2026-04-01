@@ -352,54 +352,35 @@
         <!-- Model Manager -->
         <div class="pt-3 border-t border-[var(--color-border)]">
           <label class="text-xs font-medium text-[var(--color-text-muted)] uppercase tracking-wide mb-2 block">Model Manager</label>
-          <div class="flex flex-col gap-1.5">
+          <div class="flex flex-col gap-1">
             {#each [...allModels, ...customModels] as model}
               {@const entry = modelState.localModels[model.id]}
               {@const status = entry?.status ?? 'unknown'}
-              <div class="flex items-center justify-between px-2.5 py-2 rounded border border-[var(--color-border)] bg-[var(--color-bg)]">
-                <div class="min-w-0">
-                  <div class="flex items-center gap-2">
-                    <span class="text-sm text-[var(--color-text)]">{model.name}</span>
-                    <span class="text-[10px] px-1.5 py-0.5 rounded bg-[var(--color-surface-hover)] text-[var(--color-text-muted)]">{model.model_type}</span>
-                    {#if model.custom}
-                      <span class="text-[10px] px-1.5 py-0.5 rounded bg-[var(--color-accent)]/20 text-[var(--color-accent)]">Custom</span>
-                    {/if}
-                  </div>
-                  <span class="text-xs text-[var(--color-text-muted)]">
-                    {model.size_bytes > 0 ? formatBytes(model.size_bytes) : model.filename}
-                  </span>
+              <div class="flex items-center gap-3 px-2 py-1.5 rounded hover:bg-[var(--color-surface-hover)] transition-colors">
+                <div class="flex-1 min-w-0">
+                  <span class="text-xs text-[var(--color-text)]">{model.name}</span>
+                  <span class="text-[10px] text-[var(--color-text-muted)]"> · {model.size_bytes > 0 ? formatBytes(model.size_bytes) : model.filename}{#if model.custom} · custom{/if}</span>
                 </div>
-                <div class="flex items-center gap-2 shrink-0">
+                <div class="flex items-center gap-1.5 shrink-0">
                   {#if status === 'ready'}
-                    <span class="text-xs text-green-400">Ready</span>
-                    {#if model.custom}
-                      <button
-                        onclick={() => handleRemoveCustomModel(model.id)}
-                        class="text-xs px-2 py-0.5 rounded border border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-red-400 hover:border-red-400 transition-colors"
-                      >Remove</button>
-                    {:else}
-                      <button
-                        onclick={() => deleteLocalModel(model.id)}
-                        class="text-xs px-2 py-0.5 rounded border border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-red-400 hover:border-red-400 transition-colors"
-                      >Remove</button>
-                    {/if}
+                    <span class="w-2 h-2 rounded-full bg-green-400"></span>
+                    <button
+                      onclick={() => model.custom ? handleRemoveCustomModel(model.id) : deleteLocalModel(model.id)}
+                      class="text-[10px] text-[var(--color-text-muted)] hover:text-red-400 transition-colors"
+                    >remove</button>
                   {:else if status === 'downloading'}
-                    <span class="text-xs text-[var(--color-accent)] animate-pulse">{entry?.progress ?? 0}%</span>
+                    <span class="text-[10px] text-[var(--color-accent)] animate-pulse">{entry?.progress ?? 0}%</span>
                   {:else}
+                    <span class="w-2 h-2 rounded-full bg-[var(--color-border)]"></span>
+                    <button
+                      onclick={() => model.custom ? downloadCustomModel(model) : downloadLocalModel(model.id)}
+                      class="text-[10px] text-[var(--color-accent)] hover:text-[var(--color-accent-hover)] transition-colors"
+                    >download</button>
                     {#if model.custom}
                       <button
-                        onclick={() => downloadCustomModel(model)}
-                        class="text-xs px-2 py-0.5 rounded bg-[var(--color-accent)] text-white hover:bg-[var(--color-accent-hover)] transition-colors"
-                      >Download</button>
-                      <button
                         onclick={() => handleRemoveCustomModel(model.id)}
-                        class="text-xs px-2 py-0.5 rounded border border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-red-400 hover:border-red-400 transition-colors"
+                        class="text-[10px] text-[var(--color-text-muted)] hover:text-red-400 transition-colors"
                       >&times;</button>
-                    {:else}
-                      <button
-                        onclick={() => downloadLocalModel(model.id)}
-                        class="text-xs px-2 py-0.5 rounded bg-[var(--color-accent)] text-white hover:bg-[var(--color-accent-hover)] transition-colors"
-                      >Download</button>
                     {/if}
                   {/if}
                 </div>
