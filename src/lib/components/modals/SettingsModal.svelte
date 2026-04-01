@@ -261,102 +261,65 @@
             ></span>
           </button>
         </div>
-        <!-- AI Provider -->
+        <!-- AI & Models -->
         <div class="pt-3 border-t border-[var(--color-border)]">
-          <label class="text-xs font-medium text-[var(--color-text-muted)] uppercase tracking-wide mb-2 block">AI Provider</label>
+          <label class="text-xs font-medium text-[var(--color-text-muted)] uppercase tracking-wide mb-2 block">AI & Models</label>
+
+          <!-- Provider Toggle -->
           <div class="flex gap-2 mb-3">
             <button
               onclick={() => updateSettings({ aiProvider: 'local' })}
-              class="flex-1 px-3 py-2 rounded text-sm border transition-colors {settings.aiProvider === 'local' ? 'border-[var(--color-accent)] bg-[var(--color-accent)]/10 text-[var(--color-text)]' : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-text-muted)]'}"
-            >
-              Local Model
-            </button>
+              class="flex-1 px-3 py-1.5 rounded text-xs border transition-colors {settings.aiProvider === 'local' ? 'border-[var(--color-accent)] bg-[var(--color-accent)]/10 text-[var(--color-text)]' : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-text-muted)]'}"
+            >Local</button>
             <button
               onclick={() => updateSettings({ aiProvider: 'cloud' })}
-              class="flex-1 px-3 py-2 rounded text-sm border transition-colors {settings.aiProvider === 'cloud' ? 'border-[var(--color-accent)] bg-[var(--color-accent)]/10 text-[var(--color-text)]' : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-text-muted)]'}"
-            >
-              Cloud (Claude)
-            </button>
+              class="flex-1 px-3 py-1.5 rounded text-xs border transition-colors {settings.aiProvider === 'cloud' ? 'border-[var(--color-accent)] bg-[var(--color-accent)]/10 text-[var(--color-text)]' : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-text-muted)]'}"
+            >Cloud (Claude)</button>
           </div>
 
-          {#if settings.aiProvider === 'local'}
-            <div class="flex flex-col gap-2 mb-3">
-              {#each availableModels as model}
-                {@const entry = modelState.localModels[model.id]}
-                {@const isSelected = settings.localModelId === model.id}
-                {@const status = entry?.status ?? 'unknown'}
-                <!-- svelte-ignore a11y_no_static_element_interactions -->
-                <div
-                  onclick={() => updateSettings({ localModelId: model.id })}
-                  onkeydown={(e: KeyboardEvent) => { if (e.key === 'Enter') updateSettings({ localModelId: model.id }); }}
-                  role="radio"
-                  aria-checked={isSelected}
-                  tabindex="0"
-                  class="flex items-center justify-between p-2.5 rounded border transition-colors text-left cursor-pointer {isSelected ? 'border-[var(--color-accent)] bg-[var(--color-accent)]/10' : 'border-[var(--color-border)] hover:border-[var(--color-text-muted)]'}"
-                >
-                  <div>
-                    <span class="text-sm text-[var(--color-text)]">{model.name}</span>
-                    <span class="text-xs text-[var(--color-text-muted)] ml-2">{formatBytes(model.size_bytes)}</span>
-                  </div>
-                  <div class="flex items-center gap-2">
-                    {#if status === 'ready'}
-                      <span class="text-xs text-green-400">Ready</span>
-                    {:else if status === 'downloading'}
-                      <span class="text-xs text-[var(--color-accent)] animate-pulse">{entry?.progress ?? 0}%</span>
-                    {:else if status === 'missing' || status === 'unknown'}
-                      {#if isSelected}
-                        <button
-                          onclick={(e: MouseEvent) => { e.stopPropagation(); downloadLocalModel(model.id); }}
-                          class="text-xs px-2 py-0.5 rounded bg-[var(--color-accent)] text-white hover:bg-[var(--color-accent-hover)] transition-colors"
-                        >Download</button>
-                      {:else}
-                        <span class="text-xs text-[var(--color-text-muted)]">Not downloaded</span>
-                      {/if}
-                    {:else}
-                      <span class="text-xs text-[var(--color-text-muted)]">Checking...</span>
-                    {/if}
-                  </div>
-                </div>
-              {/each}
-            </div>
-          {:else}
-            <div class="flex flex-col gap-2 mb-3">
-              <div class="flex gap-2">
-                <div class="flex-1 relative">
-                  <input
-                    type={showApiKey ? 'text' : 'password'}
-                    value={settings.claudeApiKey}
-                    oninput={(e) => { updateSettings({ claudeApiKey: (e.target as HTMLInputElement).value }); connectionResult = null; }}
-                    placeholder="sk-ant-..."
-                    class="w-full px-3 py-2 rounded text-sm border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent)]"
-                  />
-                  <button
-                    onclick={() => showApiKey = !showApiKey}
-                    class="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
-                  >{showApiKey ? 'Hide' : 'Show'}</button>
-                </div>
+          {#if settings.aiProvider === 'cloud'}
+            <!-- Claude API Key -->
+            <div class="flex gap-2 mb-3">
+              <div class="flex-1 relative">
+                <input
+                  type={showApiKey ? 'text' : 'password'}
+                  value={settings.claudeApiKey}
+                  oninput={(e) => { updateSettings({ claudeApiKey: (e.target as HTMLInputElement).value }); connectionResult = null; }}
+                  placeholder="sk-ant-..."
+                  class="w-full px-2 py-1.5 rounded text-xs border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent)]"
+                />
                 <button
-                  onclick={testClaudeKey}
-                  disabled={!settings.claudeApiKey || testingConnection}
-                  class="px-3 py-2 rounded text-sm border border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-text-muted)] transition-colors disabled:opacity-50"
-                >{testingConnection ? 'Testing...' : 'Test'}</button>
+                  onclick={() => showApiKey = !showApiKey}
+                  class="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+                >{showApiKey ? 'Hide' : 'Show'}</button>
               </div>
-              {#if connectionResult}
-                <p class="text-xs {connectionResult.ok ? 'text-green-400' : 'text-red-400'}">{connectionResult.message}</p>
-              {/if}
-              <p class="text-xs text-[var(--color-text-muted)]">Uses Claude Sonnet for cleanup, extraction, and chat</p>
+              <button
+                onclick={testClaudeKey}
+                disabled={!settings.claudeApiKey || testingConnection}
+                class="px-2 py-1.5 rounded text-xs border border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-text-muted)] transition-colors disabled:opacity-50"
+              >{testingConnection ? '...' : 'Test'}</button>
             </div>
+            {#if connectionResult}
+              <p class="text-xs mb-2 {connectionResult.ok ? 'text-green-400' : 'text-red-400'}">{connectionResult.message}</p>
+            {/if}
           {/if}
-        </div>
 
-        <!-- Model Manager -->
-        <div class="pt-3 border-t border-[var(--color-border)]">
-          <label class="text-xs font-medium text-[var(--color-text-muted)] uppercase tracking-wide mb-2 block">Model Manager</label>
-          <div class="flex flex-col gap-1">
+          <!-- Models list -->
+          <div class="flex flex-col gap-0.5">
             {#each [...allModels, ...customModels] as model}
               {@const entry = modelState.localModels[model.id]}
               {@const status = entry?.status ?? 'unknown'}
-              <div class="flex items-center gap-3 px-2 py-1.5 rounded hover:bg-[var(--color-surface-hover)] transition-colors">
+              {@const isActiveGen = settings.aiProvider === 'local' && model.model_type === 'generation' && settings.localModelId === model.id}
+              <div class="flex items-center gap-3 px-2 py-1.5 rounded transition-colors {isActiveGen ? 'bg-[var(--color-accent)]/10' : 'hover:bg-[var(--color-surface-hover)]'}">
+                {#if model.model_type === 'generation' && settings.aiProvider === 'local'}
+                  <!-- svelte-ignore a11y_no_static_element_interactions -->
+                  <button
+                    onclick={() => updateSettings({ localModelId: model.id })}
+                    class="w-3 h-3 rounded-full border-2 shrink-0 {isActiveGen ? 'border-[var(--color-accent)] bg-[var(--color-accent)]' : 'border-[var(--color-border)]'}"
+                  ></button>
+                {:else}
+                  <span class="w-3 h-3 shrink-0"></span>
+                {/if}
                 <div class="flex-1 min-w-0">
                   <span class="text-xs text-[var(--color-text)]">{model.name}</span>
                   <span class="text-[10px] text-[var(--color-text-muted)]"> · {model.size_bytes > 0 ? formatBytes(model.size_bytes) : model.filename}{#if model.custom} · custom{/if}</span>
@@ -386,54 +349,32 @@
                 </div>
               </div>
             {/each}
-
-            <!-- Add custom model -->
-            {#if showAddModel}
-              <div class="px-2.5 py-3 rounded border border-[var(--color-accent)] bg-[var(--color-bg)] flex flex-col gap-2">
-                <input
-                  type="text"
-                  bind:value={newModelName}
-                  placeholder="Model name (e.g., Qwen 2.5 7B)"
-                  class="px-2 py-1.5 rounded text-sm border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text)] placeholder:text-[var(--color-text-muted)] outline-none focus:border-[var(--color-accent)]"
-                />
-                <input
-                  type="text"
-                  bind:value={newModelUrl}
-                  placeholder="HuggingFace GGUF URL"
-                  class="px-2 py-1.5 rounded text-sm border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text)] placeholder:text-[var(--color-text-muted)] outline-none focus:border-[var(--color-accent)]"
-                />
-                <div class="flex items-center gap-2">
-                  <label class="text-xs text-[var(--color-text-muted)]">Template:</label>
-                  <select
-                    bind:value={newModelTemplate}
-                    class="flex-1 px-2 py-1 rounded text-xs border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text)] outline-none"
-                  >
-                    {#each CHAT_TEMPLATES as tmpl}
-                      <option value={tmpl.id}>{tmpl.name}</option>
-                    {/each}
-                  </select>
-                </div>
-                <div class="flex justify-end gap-2">
-                  <button
-                    onclick={() => showAddModel = false}
-                    class="text-xs px-3 py-1 rounded text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] transition-colors"
-                  >Cancel</button>
-                  <button
-                    onclick={handleAddModel}
-                    disabled={!newModelUrl.trim() || !newModelName.trim() || addingModel}
-                    class="text-xs px-3 py-1 rounded bg-[var(--color-accent)] text-white hover:bg-[var(--color-accent-hover)] transition-colors disabled:opacity-50"
-                  >{addingModel ? 'Adding...' : 'Add & Download'}</button>
-                </div>
-              </div>
-            {:else}
-              <button
-                onclick={() => showAddModel = true}
-                class="w-full text-left px-2.5 py-2 text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] rounded border border-dashed border-[var(--color-border)] transition-colors"
-              >
-                + Add Model from HuggingFace
-              </button>
-            {/if}
           </div>
+
+          <!-- Add custom model -->
+          {#if showAddModel}
+            <div class="mt-2 px-2.5 py-3 rounded border border-[var(--color-accent)] bg-[var(--color-bg)] flex flex-col gap-2">
+              <input type="text" bind:value={newModelName} placeholder="Model name (e.g., Qwen 2.5 7B)" class="px-2 py-1.5 rounded text-xs border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text)] placeholder:text-[var(--color-text-muted)] outline-none focus:border-[var(--color-accent)]" />
+              <input type="text" bind:value={newModelUrl} placeholder="HuggingFace GGUF URL" class="px-2 py-1.5 rounded text-xs border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text)] placeholder:text-[var(--color-text-muted)] outline-none focus:border-[var(--color-accent)]" />
+              <div class="flex items-center gap-2">
+                <label class="text-[10px] text-[var(--color-text-muted)]">Template:</label>
+                <select bind:value={newModelTemplate} class="flex-1 px-2 py-1 rounded text-[10px] border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text)] outline-none">
+                  {#each CHAT_TEMPLATES as tmpl}
+                    <option value={tmpl.id}>{tmpl.name}</option>
+                  {/each}
+                </select>
+              </div>
+              <div class="flex justify-end gap-2">
+                <button onclick={() => showAddModel = false} class="text-xs px-3 py-1 rounded text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] transition-colors">Cancel</button>
+                <button onclick={handleAddModel} disabled={!newModelUrl.trim() || !newModelName.trim() || addingModel} class="text-xs px-3 py-1 rounded bg-[var(--color-accent)] text-white hover:bg-[var(--color-accent-hover)] transition-colors disabled:opacity-50">{addingModel ? 'Adding...' : 'Add & Download'}</button>
+              </div>
+            </div>
+          {:else}
+            <button
+              onclick={() => showAddModel = true}
+              class="mt-1 w-full text-left px-2 py-1.5 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] rounded transition-colors"
+            >+ Add Model from HuggingFace</button>
+          {/if}
         </div>
       </div>
 
