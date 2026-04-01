@@ -373,6 +373,8 @@
         ⏹ Recording...
       {:else if transcribing}
         Transcribing...
+      {:else if modelState.whisper.status === 'downloading'}
+        🎙 {modelState.whisper.progress ?? 0}%
       {:else if modelState.whisper.status === 'missing'}
         🎙&#8595;
       {:else}
