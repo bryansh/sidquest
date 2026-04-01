@@ -1,6 +1,8 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
+import { LazyStore } from '@tauri-apps/plugin-store';
 import { settings } from './settingsState.svelte';
+import type { LocalModelDef } from '$lib/models';
 
 export type ModelStatus = 'unknown' | 'checking' | 'missing' | 'downloading' | 'ready';
 
@@ -135,6 +137,84 @@ export async function ensureEmbeddingModel(): Promise<boolean> {
     return getEmbeddingModel().status === 'ready';
   }
   return false;
+}
+
+// === Custom models ===
+const customModelStore = new LazyStore('custom-models.json');
+
+export async function loadCustomModels(): Promise<LocalModelDef[]> {
+  try {
+    const models = await customModelStore.get<LocalModelDef[]>('models');
+    return models ?? [];
+  } catch {
+    return [];
+  }
+}
+
+export async function saveCustomModel(model: LocalModelDef): Promise<void> {
+  const models = await loadCustomModels();
+  const existing = models.findIndex(m => m.id === model.id);
+  if (existing >= 0) {
+    models[existing] = model;
+  } else {
+    models.push(model);
+  }
+  await customModelStore.set('models', models);
+  await customModelStore.save();
+}
+
+export async function removeCustomModel(modelId: string): Promise<void> {
+  const models = await loadCustomModels();
+  const model = models.find(m => m.id === modelId);
+  if (model) {
+    // Delete the file
+    try {
+      await invoke('delete_custom_model', { filename: model.filename });
+    } catch (e) {
+      console.error('[ModelManager] Failed to delete custom model file:', e);
+    }
+  }
+  const filtered = models.filter(m => m.id !== modelId);
+  await customModelStore.set('models', filtered);
+  await customModelStore.save();
+  delete modelState.localModels[modelId];
+}
+
+export async function downloadCustomModel(model: LocalModelDef): Promise<void> {
+  if (!modelState.localModels[model.id]) {
+    modelState.localModels[model.id] = { status: 'unknown', progress: null };
+  }
+  if (modelState.localModels[model.id].status === 'downloading') return;
+
+  modelState.localModels[model.id].status = 'downloading';
+  modelState.localModels[model.id].progress = 0;
+
+  const unlisten = await listen<{ filename: string; downloaded: number; total: number }>('custom-model-progress', (event) => {
+    if (event.payload.filename === model.filename && modelState.localModels[model.id]) {
+      const { downloaded, total } = event.payload;
+      modelState.localModels[model.id].progress = total > 0 ? Math.round((downloaded / total) * 100) : 0;
+    }
+  });
+
+  try {
+    await invoke('download_custom_model', { url: model.url, filename: model.filename });
+    modelState.localModels[model.id].status = 'ready';
+  } catch (e) {
+    console.error(`[ModelManager] Custom download failed for ${model.id}:`, e);
+    modelState.localModels[model.id].status = 'missing';
+  } finally {
+    unlisten();
+    modelState.localModels[model.id].progress = null;
+  }
+}
+
+export async function checkCustomModel(model: LocalModelDef): Promise<void> {
+  if (!modelState.localModels[model.id]) {
+    modelState.localModels[model.id] = { status: 'unknown', progress: null };
+  }
+  modelState.localModels[model.id].status = 'checking';
+  const ready = await invoke<boolean>('check_custom_model', { filename: model.filename }).catch(() => false);
+  modelState.localModels[model.id].status = ready ? 'ready' : 'missing';
 }
 
 // Backward compat

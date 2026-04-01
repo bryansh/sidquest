@@ -2,8 +2,8 @@
   import { Dialog } from 'bits-ui';
   import { invoke } from '@tauri-apps/api/core';
   import { settings, updateSettings, accentColors, formatShortcut, displayShortcut, type Theme, type AccentColor, type AIProvider } from '$lib/state/settingsState.svelte';
-  import { modelState, checkLocalModel, downloadLocalModel, deleteLocalModel } from '$lib/state/modelState.svelte';
-  import { type LocalModelDef, formatBytes } from '$lib/models';
+  import { modelState, checkLocalModel, downloadLocalModel, deleteLocalModel, loadCustomModels, saveCustomModel, removeCustomModel, downloadCustomModel, checkCustomModel } from '$lib/state/modelState.svelte';
+  import { type LocalModelDef, formatBytes, filenameFromUrl, CHAT_TEMPLATES } from '$lib/models';
   import { onMount } from 'svelte';
 
   let { onClose }: { onClose: () => void } = $props();
@@ -36,18 +36,69 @@
   let showApiKey = $state(false);
 
   let allModels = $state<LocalModelDef[]>([]);
+  let customModels = $state<LocalModelDef[]>([]);
+  let showAddModel = $state(false);
+  let newModelUrl = $state('');
+  let newModelName = $state('');
+  let newModelTemplate = $state('gemma3');
+  let addingModel = $state(false);
 
   onMount(async () => {
     try {
       availableModels = await invoke<LocalModelDef[]>('get_available_models');
       allModels = await invoke<LocalModelDef[]>('get_all_models');
+      customModels = await loadCustomModels();
+      // Add custom generation models to the picker
+      const customGenModels = customModels.filter(m => m.model_type === 'generation');
+      availableModels = [...availableModels, ...customGenModels];
       for (const m of allModels) {
         await checkLocalModel(m.id);
+      }
+      for (const m of customModels) {
+        await checkCustomModel(m);
       }
     } catch (e) {
       console.error('[Settings] Failed to load models:', e);
     }
   });
+
+  async function handleAddModel() {
+    if (!newModelUrl.trim() || !newModelName.trim()) return;
+    addingModel = true;
+    const filename = filenameFromUrl(newModelUrl);
+    const id = `custom-${filename.replace(/[^a-zA-Z0-9]/g, '-')}`;
+    const model: LocalModelDef = {
+      id,
+      name: newModelName.trim(),
+      filename,
+      url: newModelUrl.trim(),
+      size_bytes: 0,
+      context_window: 4096,
+      chat_template: newModelTemplate,
+      model_type: 'generation',
+      embedding_dim: null,
+      custom: true,
+    };
+    await saveCustomModel(model);
+    customModels = await loadCustomModels();
+    await downloadCustomModel(model);
+    // Add to generation model picker
+    availableModels = [...availableModels, model];
+    newModelUrl = '';
+    newModelName = '';
+    newModelTemplate = 'gemma3';
+    showAddModel = false;
+    addingModel = false;
+  }
+
+  async function handleRemoveCustomModel(modelId: string) {
+    await removeCustomModel(modelId);
+    customModels = await loadCustomModels();
+    availableModels = availableModels.filter(m => m.id !== modelId);
+    if (settings.localModelId === modelId) {
+      updateSettings({ localModelId: 'gemma3-12b' });
+    }
+  }
 
   async function testClaudeKey() {
     if (!settings.claudeApiKey) return;
@@ -300,9 +351,9 @@
 
         <!-- Model Manager -->
         <div class="pt-3 border-t border-[var(--color-border)]">
-          <label class="text-xs font-medium text-[var(--color-text-muted)] uppercase tracking-wide mb-2 block">Downloaded Models</label>
+          <label class="text-xs font-medium text-[var(--color-text-muted)] uppercase tracking-wide mb-2 block">Model Manager</label>
           <div class="flex flex-col gap-1.5">
-            {#each allModels as model}
+            {#each [...allModels, ...customModels] as model}
               {@const entry = modelState.localModels[model.id]}
               {@const status = entry?.status ?? 'unknown'}
               <div class="flex items-center justify-between px-2.5 py-2 rounded border border-[var(--color-border)] bg-[var(--color-bg)]">
@@ -310,27 +361,97 @@
                   <div class="flex items-center gap-2">
                     <span class="text-sm text-[var(--color-text)]">{model.name}</span>
                     <span class="text-[10px] px-1.5 py-0.5 rounded bg-[var(--color-surface-hover)] text-[var(--color-text-muted)]">{model.model_type}</span>
+                    {#if model.custom}
+                      <span class="text-[10px] px-1.5 py-0.5 rounded bg-[var(--color-accent)]/20 text-[var(--color-accent)]">Custom</span>
+                    {/if}
                   </div>
-                  <span class="text-xs text-[var(--color-text-muted)]">{formatBytes(model.size_bytes)}</span>
+                  <span class="text-xs text-[var(--color-text-muted)]">
+                    {model.size_bytes > 0 ? formatBytes(model.size_bytes) : model.filename}
+                  </span>
                 </div>
                 <div class="flex items-center gap-2 shrink-0">
                   {#if status === 'ready'}
                     <span class="text-xs text-green-400">Ready</span>
-                    <button
-                      onclick={() => deleteLocalModel(model.id)}
-                      class="text-xs px-2 py-0.5 rounded border border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-red-400 hover:border-red-400 transition-colors"
-                    >Remove</button>
+                    {#if model.custom}
+                      <button
+                        onclick={() => handleRemoveCustomModel(model.id)}
+                        class="text-xs px-2 py-0.5 rounded border border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-red-400 hover:border-red-400 transition-colors"
+                      >Remove</button>
+                    {:else}
+                      <button
+                        onclick={() => deleteLocalModel(model.id)}
+                        class="text-xs px-2 py-0.5 rounded border border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-red-400 hover:border-red-400 transition-colors"
+                      >Remove</button>
+                    {/if}
                   {:else if status === 'downloading'}
                     <span class="text-xs text-[var(--color-accent)] animate-pulse">{entry?.progress ?? 0}%</span>
                   {:else}
-                    <button
-                      onclick={() => downloadLocalModel(model.id)}
-                      class="text-xs px-2 py-0.5 rounded bg-[var(--color-accent)] text-white hover:bg-[var(--color-accent-hover)] transition-colors"
-                    >Download</button>
+                    {#if model.custom}
+                      <button
+                        onclick={() => downloadCustomModel(model)}
+                        class="text-xs px-2 py-0.5 rounded bg-[var(--color-accent)] text-white hover:bg-[var(--color-accent-hover)] transition-colors"
+                      >Download</button>
+                      <button
+                        onclick={() => handleRemoveCustomModel(model.id)}
+                        class="text-xs px-2 py-0.5 rounded border border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-red-400 hover:border-red-400 transition-colors"
+                      >&times;</button>
+                    {:else}
+                      <button
+                        onclick={() => downloadLocalModel(model.id)}
+                        class="text-xs px-2 py-0.5 rounded bg-[var(--color-accent)] text-white hover:bg-[var(--color-accent-hover)] transition-colors"
+                      >Download</button>
+                    {/if}
                   {/if}
                 </div>
               </div>
             {/each}
+
+            <!-- Add custom model -->
+            {#if showAddModel}
+              <div class="px-2.5 py-3 rounded border border-[var(--color-accent)] bg-[var(--color-bg)] flex flex-col gap-2">
+                <input
+                  type="text"
+                  bind:value={newModelName}
+                  placeholder="Model name (e.g., Qwen 2.5 7B)"
+                  class="px-2 py-1.5 rounded text-sm border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text)] placeholder:text-[var(--color-text-muted)] outline-none focus:border-[var(--color-accent)]"
+                />
+                <input
+                  type="text"
+                  bind:value={newModelUrl}
+                  placeholder="HuggingFace GGUF URL"
+                  class="px-2 py-1.5 rounded text-sm border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text)] placeholder:text-[var(--color-text-muted)] outline-none focus:border-[var(--color-accent)]"
+                />
+                <div class="flex items-center gap-2">
+                  <label class="text-xs text-[var(--color-text-muted)]">Template:</label>
+                  <select
+                    bind:value={newModelTemplate}
+                    class="flex-1 px-2 py-1 rounded text-xs border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text)] outline-none"
+                  >
+                    {#each CHAT_TEMPLATES as tmpl}
+                      <option value={tmpl.id}>{tmpl.name}</option>
+                    {/each}
+                  </select>
+                </div>
+                <div class="flex justify-end gap-2">
+                  <button
+                    onclick={() => showAddModel = false}
+                    class="text-xs px-3 py-1 rounded text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] transition-colors"
+                  >Cancel</button>
+                  <button
+                    onclick={handleAddModel}
+                    disabled={!newModelUrl.trim() || !newModelName.trim() || addingModel}
+                    class="text-xs px-3 py-1 rounded bg-[var(--color-accent)] text-white hover:bg-[var(--color-accent-hover)] transition-colors disabled:opacity-50"
+                  >{addingModel ? 'Adding...' : 'Add & Download'}</button>
+                </div>
+              </div>
+            {:else}
+              <button
+                onclick={() => showAddModel = true}
+                class="w-full text-left px-2.5 py-2 text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] rounded border border-dashed border-[var(--color-border)] transition-colors"
+              >
+                + Add Model from HuggingFace
+              </button>
+            {/if}
           </div>
         </div>
       </div>

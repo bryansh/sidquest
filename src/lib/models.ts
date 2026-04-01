@@ -8,12 +8,28 @@ export interface LocalModelDef {
 	chat_template: string;
 	model_type: string;
 	embedding_dim: number | null;
+	custom?: boolean;
 }
 
 export type AIProvider = 'local' | 'cloud';
+
+export const CHAT_TEMPLATES = [
+	{ id: 'gemma3', name: 'Gemma 3' },
+	{ id: 'llama3', name: 'Llama 3 / Qwen' },
+	{ id: 'chatml', name: 'ChatML (Mistral, Phi)' },
+];
 
 export function formatBytes(bytes: number): string {
 	if (bytes >= 1_000_000_000) return `${(bytes / 1_000_000_000).toFixed(1)} GB`;
 	if (bytes >= 1_000_000) return `${(bytes / 1_000_000).toFixed(0)} MB`;
 	return `${bytes} B`;
+}
+
+export function filenameFromUrl(url: string): string {
+	try {
+		const path = new URL(url).pathname;
+		return path.split('/').pop() ?? 'model.gguf';
+	} catch {
+		return url.split('/').pop() ?? 'model.gguf';
+	}
 }

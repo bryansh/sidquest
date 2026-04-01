@@ -22,6 +22,76 @@ pub fn check_local_model(app: AppHandle, model_id: String) -> Result<bool, Strin
 }
 
 #[tauri::command]
+pub async fn download_custom_model(app: AppHandle, window: tauri::WebviewWindow, url: String, filename: String) -> Result<(), String> {
+    use futures_util::StreamExt;
+
+    let dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("Failed to get app data dir: {}", e))?;
+    let path = dir.join(&filename);
+
+    if let Some(parent) = path.parent() {
+        tokio::fs::create_dir_all(parent)
+            .await
+            .map_err(|e| format!("Failed to create directory: {}", e))?;
+    }
+
+    let response = reqwest::get(&url)
+        .await
+        .map_err(|e| format!("Failed to download: {}", e))?;
+
+    let total = response.content_length().unwrap_or(0);
+    let mut downloaded: u64 = 0;
+
+    let mut file = tokio::fs::File::create(&path)
+        .await
+        .map_err(|e| format!("Failed to create file: {}", e))?;
+
+    let mut stream = response.bytes_stream();
+
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk.map_err(|e| format!("Download error: {}", e))?;
+        tokio::io::AsyncWriteExt::write_all(&mut file, &chunk)
+            .await
+            .map_err(|e| format!("Write error: {}", e))?;
+
+        downloaded += chunk.len() as u64;
+        let _ = window.emit("custom-model-progress", serde_json::json!({
+            "filename": filename,
+            "downloaded": downloaded,
+            "total": total,
+        }));
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn delete_custom_model(app: AppHandle, filename: String) -> Result<(), String> {
+    let dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("Failed to get app data dir: {}", e))?;
+    let path = dir.join(&filename);
+    if path.exists() {
+        tokio::fs::remove_file(&path)
+            .await
+            .map_err(|e| format!("Failed to delete: {}", e))?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn check_custom_model(app: AppHandle, filename: String) -> Result<bool, String> {
+    let dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("Failed to get app data dir: {}", e))?;
+    Ok(dir.join(&filename).exists())
+}
+
+#[tauri::command]
 pub async fn delete_local_model(app: AppHandle, model_id: String) -> Result<(), String> {
     let path = model_path(&app, &model_id)?;
     if path.exists() {
