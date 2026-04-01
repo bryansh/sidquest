@@ -105,25 +105,25 @@ export async function signIn(email: string, password: string) {
     try {
       ({ data, error } = await authClient.signIn.email({ email, password }));
     } catch (e: any) {
-      error = { message: e.message ?? 'Sign in failed' };
+      error = { message: e.message ?? String(e) };
     }
     if (error) {
       // Auto-reset password and retry
-      console.log('[Auth] Sign-in failed:', error.message, '— attempting password reset...');
+      const firstError = error.message || String(error);
       const reset = await forceResetPassword(email, password);
-      console.log('[Auth] Force reset result:', reset);
       if (reset) {
         try {
           const retry = await authClient.signIn.email({ email, password });
-          console.log('[Auth] Retry result:', retry.error?.message ?? 'success');
           data = retry.data;
           error = retry.error;
         } catch (e: any) {
-          error = { message: e.message ?? 'Sign in failed' };
+          error = { message: `Retry failed: ${e.message ?? String(e)}` };
         }
+      } else {
+        error = { message: `Sign in failed: ${firstError}. Password reset also failed — account may not exist.` };
       }
       if (error) {
-        authState.error = error.message ?? 'Sign in failed';
+        authState.error = error.message ?? `Sign in failed: ${firstError}`;
         return;
       }
     }
@@ -137,7 +137,7 @@ export async function signIn(email: string, password: string) {
       window.dispatchEvent(new CustomEvent('auth-success', { detail: { userId: authState.user.id } }));
     }
   } catch (e: any) {
-    authState.error = e.message ?? 'Sign in failed';
+    authState.error = `Sign in failed: ${e.message ?? String(e)}`;
   } finally {
     authState.loading = false;
   }
@@ -147,9 +147,15 @@ export async function signUp(email: string, password: string, name: string) {
   authState.loading = true;
   authState.error = null;
   try {
-    const { data, error } = await authClient.signUp.email({ email, password, name });
+    let data: any = null;
+    let error: any = null;
+    try {
+      ({ data, error } = await authClient.signUp.email({ email, password, name }));
+    } catch (e: any) {
+      error = { message: e.message ?? String(e) };
+    }
     if (error) {
-      authState.error = error.message ?? 'Sign up failed';
+      authState.error = `Sign up failed: ${error.message ?? String(error)}`;
       return;
     }
     if (data?.user) {
@@ -162,7 +168,7 @@ export async function signUp(email: string, password: string, name: string) {
       window.dispatchEvent(new CustomEvent('auth-success', { detail: { userId: authState.user.id } }));
     }
   } catch (e: any) {
-    authState.error = e.message ?? 'Sign up failed';
+    authState.error = `Sign up failed: ${e.message ?? String(e)}`;
   } finally {
     authState.loading = false;
   }

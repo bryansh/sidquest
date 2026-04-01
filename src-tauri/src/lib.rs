@@ -45,6 +45,7 @@ pub fn run() {
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_global_shortcut::Builder::default().build())
         .plugin(tauri_plugin_sql::Builder::default().build())
+        .plugin(tauri_plugin_http::init())
         .setup(|app| {
             // Build tray menu
             let show = MenuItemBuilder::with_id("show", "Show Sidquest")
