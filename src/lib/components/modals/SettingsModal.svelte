@@ -81,14 +81,17 @@
     };
     await saveCustomModel(model);
     customModels = await loadCustomModels();
-    await downloadCustomModel(model);
-    // Add to generation model picker
     availableModels = [...availableModels, model];
+
+    // Close form and reset
     newModelUrl = '';
     newModelName = '';
     newModelTemplate = 'gemma3';
     showAddModel = false;
     addingModel = false;
+
+    // Start download in background (don't await)
+    downloadCustomModel(model);
   }
 
   async function handleRemoveCustomModel(modelId: string) {
