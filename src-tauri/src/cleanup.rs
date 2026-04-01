@@ -41,7 +41,15 @@ pub async fn download_custom_model(app: AppHandle, window: tauri::WebviewWindow,
         .await
         .map_err(|e| format!("Failed to download: {}", e))?;
 
+    if !response.status().is_success() {
+        return Err(format!("Download failed: HTTP {}", response.status()));
+    }
+
     let total = response.content_length().unwrap_or(0);
+    if total > 0 && total < 1000 {
+        return Err(format!("File too small ({}B) — URL may be invalid", total));
+    }
+
     let mut downloaded: u64 = 0;
 
     let mut file = tokio::fs::File::create(&path)
