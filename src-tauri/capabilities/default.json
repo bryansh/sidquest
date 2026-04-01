@@ -27,6 +27,15 @@
     "sql:allow-load",
     "sql:allow-execute",
     "sql:allow-select",
-    "http:default"
+    {
+      "identifier": "http:default",
+      "allow": [
+        { "url": "https://*.neon.tech/**" },
+        { "url": "https://*.neonauth.*/**" },
+        { "url": "https://api.anthropic.com/**" },
+        { "url": "https://huggingface.co/**" },
+        { "url": "https://neon.tech" }
+      ]
+    }
   ]
 }
