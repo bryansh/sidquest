@@ -14,6 +14,8 @@ export const chatState = $state({
 	messages: {} as Record<string, ChatMessage[]>,
 	embeddingStatus: 'idle' as 'idle' | 'indexing' | 'ready' | 'error',
 	embeddingCount: 0,
+	embeddingError: '' as string,
+	embeddingProgress: null as { done: number; total: number } | null,
 	thinking: false,
 });
 
@@ -75,12 +77,15 @@ async function indexNotes() {
 	if (!gameId) return;
 
 	chatState.embeddingStatus = 'indexing';
+	chatState.embeddingError = '';
+	chatState.embeddingProgress = null;
 
 	try {
 		// Ensure embedding model is available
 		const modelReady = await ensureEmbeddingModel();
 		if (!modelReady) {
 			chatState.embeddingStatus = 'error';
+			chatState.embeddingError = 'Embedding model not available. Check Settings > AI & Models.';
 			return;
 		}
 
@@ -126,6 +131,8 @@ async function indexNotes() {
 
 		// Batch embed (in chunks of 10 to avoid overwhelming the worker)
 		const BATCH_SIZE = 10;
+		let processed = 0;
+		chatState.embeddingProgress = { done: 0, total: textsToEmbed.length };
 		for (let i = 0; i < textsToEmbed.length; i += BATCH_SIZE) {
 			const batch = textsToEmbed.slice(i, i + BATCH_SIZE);
 			const texts = batch.map(t => t.text);
@@ -146,13 +153,18 @@ async function indexNotes() {
 					item.updatedAt
 				);
 			}
+			processed += batch.length;
+			chatState.embeddingProgress = { done: processed, total: textsToEmbed.length };
 		}
 
 		chatState.embeddingCount = await getEmbeddingCount(gameId);
+		chatState.embeddingProgress = null;
 		chatState.embeddingStatus = 'ready';
 	} catch (e) {
 		console.error('[Chat] Indexing failed:', e);
 		chatState.embeddingStatus = 'error';
+		chatState.embeddingError = String(e);
+		chatState.embeddingProgress = null;
 	}
 }
 

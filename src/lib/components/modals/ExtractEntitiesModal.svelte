@@ -203,22 +203,23 @@
         </div>
 
       {:else if status === 'reviewing'}
-        <p class="text-sm text-[var(--color-text-muted)] mb-3">Review extracted entities. Edit, remove, or add new ones.</p>
+        <p class="text-sm text-[var(--color-text-muted)] mb-3">Review extracted entities. Edit names, labels, or descriptions before creating.</p>
 
-        <div class="flex-1 overflow-y-auto space-y-3 mb-3">
+        <div class="flex-1 overflow-y-auto space-y-2 mb-3">
           {#each suggestions as suggestion, i}
-            <div class="px-3 py-3 rounded border {suggestion.existingEntityId ? 'border-[var(--color-accent)]/40' : 'border-[var(--color-border)]'} bg-[var(--color-bg)]">
-              <div class="flex items-center gap-2 mb-2">
+            <div class="rounded-lg border {suggestion.existingEntityId ? 'border-[var(--color-accent)]/40' : 'border-[var(--color-border)]'} bg-[var(--color-bg)] overflow-hidden">
+              <!-- Entity header row -->
+              <div class="flex items-center gap-2 px-3 py-2 bg-[var(--color-surface)]">
                 {#if suggestion.existingEntityId}
-                  <span class="text-[10px] px-1.5 py-0.5 rounded bg-[var(--color-accent)]/20 text-[var(--color-accent)] shrink-0">Update</span>
+                  <span class="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--color-accent)]/20 text-[var(--color-accent)] font-medium shrink-0">UPDATE</span>
                 {:else}
-                  <span class="text-[10px] px-1.5 py-0.5 rounded bg-green-500/20 text-green-400 shrink-0">New</span>
+                  <span class="text-[10px] px-1.5 py-0.5 rounded-full bg-green-500/20 text-green-400 font-medium shrink-0">NEW</span>
                 {/if}
                 <input
                   type="text"
                   bind:value={suggestion.name}
                   placeholder="Entity name"
-                  class="flex-1 text-base font-medium bg-transparent border-b border-[var(--color-border)] focus:border-[var(--color-accent)] outline-none text-[var(--color-text)] px-0 py-1"
+                  class="flex-1 text-sm font-medium bg-[var(--color-bg)] border border-[var(--color-border)] focus:border-[var(--color-accent)] rounded px-2 py-1 outline-none text-[var(--color-text)]"
                 />
                 <select
                   bind:value={suggestion.typeId}
@@ -226,7 +227,7 @@
                     const et = entityTypes.find(t => t.id === suggestion.typeId);
                     if (et) suggestion.typeName = et.name;
                   }}
-                  class="text-xs px-2 py-1 rounded bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-text-muted)] outline-none"
+                  class="text-xs px-2 py-1 rounded bg-[var(--color-bg)] border border-[var(--color-border)] text-[var(--color-text-muted)] outline-none"
                 >
                   {#each entityTypes as et}
                     <option value={et.id}>{et.icon ?? ''} {et.name}</option>
@@ -234,22 +235,31 @@
                 </select>
                 <button
                   onclick={() => suggestions = suggestions.filter((_, idx) => idx !== i)}
-                  title="Remove"
-                  class="text-sm text-[var(--color-text-muted)] hover:text-red-400 px-1"
+                  title="Remove this entity"
+                  class="text-sm text-[var(--color-text-muted)] hover:text-red-400 px-1 transition-colors"
                 >&times;</button>
               </div>
-              <input
-                type="text"
-                bind:value={suggestion.label}
-                placeholder="Short label (shown in sidebar)..."
-                class="w-full text-sm bg-transparent border-b border-[var(--color-border)] focus:border-[var(--color-accent)] outline-none text-[var(--color-text-muted)] px-0 py-1 italic mb-2"
-              />
-              <textarea
-                bind:value={suggestion.description}
-                placeholder="Detailed description (becomes the entity's note)..."
-                rows="3"
-                class="w-full text-sm bg-transparent border border-[var(--color-border)] focus:border-[var(--color-accent)] rounded outline-none text-[var(--color-text)] px-2 py-1.5 resize-y"
-              ></textarea>
+              <!-- Entity fields -->
+              <div class="px-3 py-2 flex flex-col gap-2">
+                <div>
+                  <label class="text-[10px] text-[var(--color-text-muted)] uppercase tracking-wide mb-0.5 block">Summary</label>
+                  <input
+                    type="text"
+                    bind:value={suggestion.label}
+                    placeholder="Short summary shown in sidebar..."
+                    class="w-full text-sm bg-[var(--color-surface)] border border-[var(--color-border)] focus:border-[var(--color-accent)] rounded px-2 py-1 outline-none text-[var(--color-text)]"
+                  />
+                </div>
+                <div>
+                  <label class="text-[10px] text-[var(--color-text-muted)] uppercase tracking-wide mb-0.5 block">Description</label>
+                  <textarea
+                    bind:value={suggestion.description}
+                    placeholder="Detailed description (becomes the entity's note)..."
+                    rows="2"
+                    class="w-full text-sm bg-[var(--color-surface)] border border-[var(--color-border)] focus:border-[var(--color-accent)] rounded px-2 py-1.5 outline-none text-[var(--color-text)] resize-y"
+                  ></textarea>
+                </div>
+              </div>
             </div>
           {/each}
 
@@ -260,22 +270,22 @@
               suggestions = [...suggestions, { name: '', label: '', description: '', typeName: defaultType.name, typeId: defaultType.id, existingEntityId: null }];
             }}
             disabled={entityTypes.length === 0}
-            class="w-full text-left px-3 py-2 text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] rounded border border-dashed border-[var(--color-border)] transition-colors"
+            class="w-full text-left px-3 py-2.5 text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] rounded-lg border border-dashed border-[var(--color-border)] transition-colors"
           >
             + Add Entity
           </button>
         </div>
 
         <div class="flex justify-between items-center pt-3 border-t border-[var(--color-border)]">
-          <span class="text-sm text-[var(--color-text-muted)]">{suggestions.length} entities</span>
+          <span class="text-xs text-[var(--color-text-muted)]">{suggestions.filter(s => s.existingEntityId).length} updates, {suggestions.filter(s => !s.existingEntityId).length} new</span>
           <div class="flex gap-2">
-            <button onclick={onClose} class="px-4 py-1.5 text-sm rounded text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] transition-colors">Reject</button>
+            <button onclick={onClose} class="px-4 py-1.5 text-sm rounded text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] transition-colors">Reject All</button>
             <button
               onclick={createEntities}
               disabled={suggestions.length === 0}
-              class="px-3 py-1.5 text-sm rounded bg-[var(--color-accent)] hover:bg-[var(--color-accent-hover)] text-white transition-colors disabled:opacity-50"
+              class="px-4 py-1.5 text-sm rounded bg-[var(--color-accent)] hover:bg-[var(--color-accent-hover)] text-white transition-colors disabled:opacity-50"
             >
-              Accept ({suggestions.length})
+              Accept All ({suggestions.length})
             </button>
           </div>
         </div>

@@ -5,6 +5,7 @@
   import { selectEntity } from '$lib/state/noteState.svelte';
   import { selectSession, createSession, deleteSession, renameSession, sessionState } from '$lib/state/sessionState.svelte';
   import { loadSettings, settings, updateSettings } from '$lib/state/settingsState.svelte';
+  import { showToast } from '$lib/state/toastState.svelte';
   import { uiState } from '$lib/state/uiState.svelte';
   import { getLocalDb } from '$lib/db/local/sqlite';
   import { hydrateIfNeeded } from '$lib/db/sync/hydrate';
@@ -21,6 +22,8 @@
   import ConfirmDeleteModal from '$lib/components/modals/ConfirmDeleteModal.svelte';
   import SettingsModal from '$lib/components/modals/SettingsModal.svelte';
   import ChatPanel from '$lib/components/layout/ChatPanel.svelte';
+  import ToastContainer from '$lib/components/layout/ToastContainer.svelte';
+  import KeyboardShortcutsModal from '$lib/components/modals/KeyboardShortcutsModal.svelte';
   import { chatState } from '$lib/state/chatState.svelte';
 
   let showSearch = $state(false);
@@ -33,6 +36,7 @@
   let confirmDeleteEntityTypeId = $state<string | null>(null);
   let confirmDeleteSessionId = $state<string | null>(null);
   let showSettings = $state(false);
+  let showShortcuts = $state(false);
   let resizing = $state(false);
 
   function handleResizeStart(e: PointerEvent) {
@@ -80,6 +84,10 @@
         e.preventDefault();
         uiState.findOpen = !uiState.findOpen;
       }
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === '/') {
+        e.preventDefault();
+        showShortcuts = !showShortcuts;
+      }
     };
     const handleAuthSuccess = (e: Event) => {
       const userId = (e as CustomEvent).detail?.userId;
@@ -95,8 +103,9 @@
 </script>
 
 {#if authState.loading}
-  <div class="flex items-center justify-center h-screen w-screen bg-[var(--color-bg)]" data-tauri-drag-region>
-    <p class="text-[var(--color-text-muted)]">Loading...</p>
+  <div class="flex flex-col items-center justify-center gap-3 h-screen w-screen bg-[var(--color-bg)]" data-tauri-drag-region>
+    <p class="text-sm font-semibold tracking-wide text-[var(--color-text-muted)]">Sidquest</p>
+    <p class="text-xs text-[var(--color-text-muted)] animate-pulse">Checking session...</p>
   </div>
 {:else if !authState.user}
   <div class="h-screen w-screen bg-[var(--color-bg)]" data-tauri-drag-region>
@@ -128,7 +137,7 @@
         class="w-1 shrink-0 cursor-col-resize hover:bg-[var(--color-accent)]/50 transition-colors {resizing ? 'bg-[var(--color-accent)]' : ''}"
         onpointerdown={handleResizeStart}
       ></div>
-      <MainPanel />
+      <MainPanel onNewGame={() => showNewGame = true} />
       {#if chatState.open}
         <ChatPanel />
       {/if}
@@ -141,6 +150,7 @@
       onCreate={async (name, description, template) => {
         await createGame(authState.user!.id, name, description, template);
         showNewGame = false;
+        showToast(`Created "${name}"`, 'success');
       }}
     />
   {/if}
@@ -177,7 +187,7 @@
       title="Delete Entity"
       message="Are you sure you want to delete &quot;{entityToDelete?.name ?? 'this entity'}&quot; and all its notes? This cannot be undone."
       onClose={() => confirmDeleteEntityId = null}
-      onConfirm={async () => { await deleteEntity(confirmDeleteEntityId!); confirmDeleteEntityId = null; }}
+      onConfirm={async () => { const name = entityToDelete?.name; await deleteEntity(confirmDeleteEntityId!); confirmDeleteEntityId = null; showToast(`Deleted "${name ?? 'entity'}"`, 'info'); }}
     />
   {/if}
 
@@ -187,12 +197,16 @@
       title="Delete Entity Type"
       message="Are you sure you want to delete &quot;{typeToDelete?.name ?? 'this type'}&quot; and all its entities and notes? This cannot be undone."
       onClose={() => confirmDeleteEntityTypeId = null}
-      onConfirm={async () => { await deleteEntityTypeById(confirmDeleteEntityTypeId!); confirmDeleteEntityTypeId = null; }}
+      onConfirm={async () => { const name = typeToDelete?.name; await deleteEntityTypeById(confirmDeleteEntityTypeId!); confirmDeleteEntityTypeId = null; showToast(`Deleted "${name ?? 'type'}"`, 'info'); }}
     />
   {/if}
 
   {#if showSettings}
     <SettingsModal onClose={() => showSettings = false} />
+  {/if}
+
+  {#if showShortcuts}
+    <KeyboardShortcutsModal onClose={() => showShortcuts = false} />
   {/if}
 
   {#if confirmDeleteSessionId}
@@ -201,7 +215,7 @@
       title="Delete Session"
       message="Are you sure you want to delete &quot;{sessionToDelete?.name ?? 'this session'}&quot; and all its notes? This cannot be undone."
       onClose={() => confirmDeleteSessionId = null}
-      onConfirm={async () => { await deleteSession(confirmDeleteSessionId!); confirmDeleteSessionId = null; }}
+      onConfirm={async () => { const name = sessionToDelete?.name; await deleteSession(confirmDeleteSessionId!); confirmDeleteSessionId = null; showToast(`Deleted "${name ?? 'session'}"`, 'info'); }}
     />
   {/if}
 
@@ -211,7 +225,9 @@
       title="Delete Game"
       message="Are you sure you want to delete &quot;{gameToDelete?.name ?? 'this game'}&quot; and all its entities and notes? This cannot be undone."
       onClose={() => confirmDeleteGameId = null}
-      onConfirm={async () => { await deleteGameById(confirmDeleteGameId!); confirmDeleteGameId = null; }}
+      onConfirm={async () => { const name = gameToDelete?.name; await deleteGameById(confirmDeleteGameId!); confirmDeleteGameId = null; showToast(`Deleted "${name ?? 'game'}"`, 'info'); }}
     />
   {/if}
+
+  <ToastContainer />
 {/if}

@@ -53,6 +53,7 @@
     <button
       onclick={onSelect}
       ondblclick={startRename}
+      title="Double-click to rename"
       class="flex-1 text-left px-3 py-1.5 text-sm min-w-0"
     >
       <span class="block truncate">{entity.name}</span>

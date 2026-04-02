@@ -77,7 +77,7 @@ async function isNetworkReachable(): Promise<boolean> {
   }
 }
 
-async function triggerSync() {
+export async function triggerSync() {
   if (syncState.syncing || !syncState.online) return;
 
   // Verify actual connectivity before attempting sync

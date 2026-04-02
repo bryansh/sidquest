@@ -40,9 +40,15 @@
       {#if chatState.embeddingStatus === 'ready'}
         <span class="text-xs text-[var(--color-text-muted)]">{chatState.embeddingCount} notes indexed</span>
       {:else if chatState.embeddingStatus === 'indexing'}
-        <span class="text-xs text-[var(--color-accent)] animate-pulse">Indexing notes...</span>
+        <span class="text-xs text-[var(--color-accent)] animate-pulse">
+          {#if chatState.embeddingProgress}
+            Indexing {chatState.embeddingProgress.done}/{chatState.embeddingProgress.total}...
+          {:else}
+            Indexing notes...
+          {/if}
+        </span>
       {:else if chatState.embeddingStatus === 'error'}
-        <span class="text-xs text-red-400">Index error</span>
+        <span class="text-xs text-red-400" title={chatState.embeddingError}>Index error</span>
       {/if}
     </div>
     <div class="flex items-center gap-1">
@@ -76,11 +82,24 @@
   <!-- Messages -->
   <div bind:this={messagesEl} class="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-3">
     {#if getMessages().length === 0 && !chatState.thinking}
-      <div class="flex-1 flex items-center justify-center">
-        <p class="text-sm text-[var(--color-text-muted)] text-center px-4">
-          Ask questions about your game notes.<br />
-          <span class="text-xs opacity-70">e.g., "What happened at the Iron Keep?" or "What quests are still open?"</span>
-        </p>
+      <div class="flex-1 flex flex-col items-center justify-center gap-3 px-4">
+        {#if chatState.embeddingStatus === 'error'}
+          <p class="text-sm text-red-400 text-center">Failed to index notes</p>
+          <p class="text-xs text-[var(--color-text-muted)] text-center max-w-[300px]">{chatState.embeddingError || 'Unknown error'}</p>
+          <button
+            onclick={reindexNotes}
+            class="text-xs px-3 py-1.5 rounded bg-[var(--color-accent)] hover:bg-[var(--color-accent-hover)] text-white transition-colors"
+          >
+            Retry
+          </button>
+        {:else}
+          <p class="text-sm text-[var(--color-text-muted)] text-center">
+            Ask questions about your game notes.
+          </p>
+          <p class="text-xs text-[var(--color-text-muted)] opacity-70 text-center">
+            e.g., "What happened at the Iron Keep?" or "What quests are still open?"
+          </p>
+        {/if}
       </div>
     {:else}
       {#each getMessages() as message}

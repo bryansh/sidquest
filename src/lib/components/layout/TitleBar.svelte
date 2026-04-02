@@ -2,7 +2,7 @@
   import { getCurrentWindow } from '@tauri-apps/api/window';
   import { authState, signOut } from '$lib/auth/authState.svelte';
   import { settings, updateSettings } from '$lib/state/settingsState.svelte';
-  import { syncState } from '$lib/state/syncState.svelte';
+  import { syncState, triggerSync } from '$lib/state/syncState.svelte';
 
   let { onOpenSettings }: { onOpenSettings: () => void } = $props();
 
@@ -33,18 +33,9 @@
   <div class="flex items-center gap-2" onmousedown={(e) => e.stopPropagation()}>
     {#if authState.user}
       <!-- Sync status indicator -->
-      <div
-        class="flex items-center gap-1.5 mr-2"
-        title={syncState.error
-          ? `Sync error: ${syncState.error}`
-          : !syncState.online
-            ? `Offline${syncState.pendingChanges > 0 ? ` — ${syncState.pendingChanges} pending` : ''}`
-            : syncState.syncing
-              ? 'Syncing...'
-              : formatLastSync(syncState.lastSyncAt)}
-      >
+      <div class="flex items-center gap-1.5 mr-2">
         <span
-          class="w-2 h-2 rounded-full {syncState.error
+          class="w-2 h-2 rounded-full shrink-0 {syncState.error
             ? 'bg-red-400'
             : !syncState.online
               ? 'bg-gray-400'
@@ -52,11 +43,18 @@
                 ? 'bg-yellow-400 animate-pulse'
                 : 'bg-green-400'}"
         ></span>
-        {#if !syncState.online}
-          <span class="text-xs text-[var(--color-text-muted)]">Offline</span>
-        {/if}
-        {#if syncState.pendingChanges > 0 && !syncState.online}
-          <span class="text-xs text-[var(--color-text-muted)]">({syncState.pendingChanges})</span>
+        {#if syncState.error}
+          <span class="text-xs text-red-400" title={syncState.error}>Sync error</span>
+          <button
+            onclick={() => triggerSync()}
+            class="text-[10px] px-1.5 py-0.5 rounded text-[var(--color-accent)] hover:bg-[var(--color-surface-hover)] transition-colors"
+          >Retry</button>
+        {:else if !syncState.online}
+          <span class="text-xs text-[var(--color-text-muted)]">Offline{#if syncState.pendingChanges > 0} ({syncState.pendingChanges} pending){/if}</span>
+        {:else if syncState.syncing}
+          <span class="text-xs text-[var(--color-text-muted)]">Syncing...</span>
+        {:else}
+          <span class="text-xs text-[var(--color-text-muted)]" title={formatLastSync(syncState.lastSyncAt)}>{formatLastSync(syncState.lastSyncAt)}</span>
         {/if}
       </div>
 

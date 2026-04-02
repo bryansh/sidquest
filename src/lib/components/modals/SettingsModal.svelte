@@ -28,6 +28,9 @@
     requestAnimationFrame(() => node.focus());
   }
 
+  type SettingsTab = 'general' | 'editor' | 'ai';
+  let activeTab = $state<SettingsTab>('general');
+
   let recordingHotkey = $state(false);
   let hotkeyError = $state('');
   let availableModels = $state<LocalModelDef[]>([]);
@@ -148,218 +151,240 @@
     <Dialog.Content
       class="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full max-w-md max-h-[85vh] rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] p-6 shadow-xl overflow-y-auto"
     >
-      <Dialog.Title class="text-lg font-semibold mb-6">Settings</Dialog.Title>
+      <Dialog.Title class="text-lg font-semibold mb-4">Settings</Dialog.Title>
+
+      <!-- Tab bar -->
+      <div class="flex gap-1 mb-5 border-b border-[var(--color-border)]">
+        {#each [['general', 'General'], ['editor', 'Editor'], ['ai', 'AI & Models']] as [id, label]}
+          <button
+            onclick={() => activeTab = id as SettingsTab}
+            class="px-3 py-2 text-sm transition-colors -mb-px {activeTab === id ? 'border-b-2 border-[var(--color-accent)] text-[var(--color-text)]' : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'}"
+          >
+            {label}
+          </button>
+        {/each}
+      </div>
 
       <div class="flex flex-col gap-5">
-        <!-- Theme -->
-        <div>
-          <label class="text-xs font-medium text-[var(--color-text-muted)] uppercase tracking-wide mb-2 block">Theme</label>
-          <div class="flex gap-2">
-            <button
-              onclick={() => setTheme('dark')}
-              class="flex-1 px-3 py-2 rounded text-sm border transition-colors {settings.theme === 'dark' ? 'border-[var(--color-accent)] bg-[var(--color-accent)]/10 text-[var(--color-text)]' : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-text-muted)]'}"
-            >
-              Dark
-            </button>
-            <button
-              onclick={() => setTheme('light')}
-              class="flex-1 px-3 py-2 rounded text-sm border transition-colors {settings.theme === 'light' ? 'border-[var(--color-accent)] bg-[var(--color-accent)]/10 text-[var(--color-text)]' : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-text-muted)]'}"
-            >
-              Light
-            </button>
-          </div>
-        </div>
 
-        <!-- Accent Color -->
-        <div>
-          <label class="text-xs font-medium text-[var(--color-text-muted)] uppercase tracking-wide mb-2 block">Accent Color</label>
-          <div class="flex gap-2">
-            {#each Object.entries(accentColors) as [name, colors]}
+        {#if activeTab === 'general'}
+          <!-- Theme -->
+          <div>
+            <label class="text-xs font-medium text-[var(--color-text-muted)] uppercase tracking-wide mb-2 block">Theme</label>
+            <div class="flex gap-2">
               <button
-                onclick={() => setAccent(name as AccentColor)}
-                title={name}
-                class="w-8 h-8 rounded-full border-2 transition-transform hover:scale-110 {settings.accentColor === name ? 'border-[var(--color-text)] scale-110' : 'border-transparent'}"
-                style="background-color: {colors.accent}"
-              ></button>
-            {/each}
+                onclick={() => setTheme('dark')}
+                class="flex-1 px-3 py-2 rounded text-sm border transition-colors {settings.theme === 'dark' ? 'border-[var(--color-accent)] bg-[var(--color-accent)]/10 text-[var(--color-text)]' : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-text-muted)]'}"
+              >
+                Dark
+              </button>
+              <button
+                onclick={() => setTheme('light')}
+                class="flex-1 px-3 py-2 rounded text-sm border transition-colors {settings.theme === 'light' ? 'border-[var(--color-accent)] bg-[var(--color-accent)]/10 text-[var(--color-text)]' : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-text-muted)]'}"
+              >
+                Light
+              </button>
+            </div>
           </div>
-        </div>
 
-        <!-- Always on Top -->
-        <div class="flex items-center justify-between">
+          <!-- Accent Color -->
           <div>
-            <label class="text-sm text-[var(--color-text)]">Always on Top</label>
-            <p class="text-xs text-[var(--color-text-muted)]">Keep window above other apps</p>
+            <label class="text-xs font-medium text-[var(--color-text-muted)] uppercase tracking-wide mb-2 block">Accent Color</label>
+            <div class="flex gap-2">
+              {#each Object.entries(accentColors) as [name, colors]}
+                <button
+                  onclick={() => setAccent(name as AccentColor)}
+                  title={name}
+                  class="w-8 h-8 rounded-full border-2 transition-transform hover:scale-110 {settings.accentColor === name ? 'border-[var(--color-text)] scale-110' : 'border-transparent'}"
+                  style="background-color: {colors.accent}"
+                ></button>
+              {/each}
+            </div>
           </div>
-          <button
-            onclick={() => setAlwaysOnTop(!settings.alwaysOnTop)}
-            aria-label="Toggle always on top"
-            class="relative w-10 h-6 rounded-full transition-colors {settings.alwaysOnTop ? 'bg-[var(--color-accent)]' : 'bg-[var(--color-border)]'}"
-          >
-            <span
-              class="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform {settings.alwaysOnTop ? 'translate-x-4' : ''}"
-            ></span>
-          </button>
-        </div>
 
-        <!-- Editor Font Size -->
-        <div class="flex items-center justify-between">
-          <div>
-            <label class="text-sm text-[var(--color-text)]">Editor Font Size</label>
-            <p class="text-xs text-[var(--color-text-muted)]">{settings.editorFontSize}px</p>
-          </div>
-          <div class="flex items-center gap-2">
+          <!-- Always on Top -->
+          <div class="flex items-center justify-between">
+            <div>
+              <label class="text-sm text-[var(--color-text)]">Always on Top</label>
+              <p class="text-xs text-[var(--color-text-muted)]">Keep window above other apps</p>
+            </div>
             <button
-              onclick={() => setFontSize(settings.editorFontSize - 1)}
-              class="w-7 h-7 rounded border border-[var(--color-border)] text-sm text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] transition-colors"
-            >-</button>
-            <span class="text-sm w-6 text-center">{settings.editorFontSize}</span>
-            <button
-              onclick={() => setFontSize(settings.editorFontSize + 1)}
-              class="w-7 h-7 rounded border border-[var(--color-border)] text-sm text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] transition-colors"
-            >+</button>
+              onclick={() => setAlwaysOnTop(!settings.alwaysOnTop)}
+              aria-label="Toggle always on top"
+              class="relative w-10 h-6 rounded-full transition-colors {settings.alwaysOnTop ? 'bg-[var(--color-accent)]' : 'bg-[var(--color-border)]'}"
+            >
+              <span
+                class="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform {settings.alwaysOnTop ? 'translate-x-4' : ''}"
+              ></span>
+            </button>
           </div>
-        </div>
 
-        <!-- Global Hotkey -->
-        <div class="flex items-center justify-between">
-          <div>
-            <label class="text-sm text-[var(--color-text)]">Global Hotkey</label>
-            <p class="text-xs text-[var(--color-text-muted)]">Show/hide Sidquest from anywhere</p>
-            {#if hotkeyError}
-              <p class="text-xs text-red-400 mt-1">{hotkeyError}</p>
+          <!-- Global Hotkey -->
+          <div class="flex items-center justify-between">
+            <div>
+              <label class="text-sm text-[var(--color-text)]">Global Hotkey</label>
+              <p class="text-xs text-[var(--color-text-muted)]">Show/hide Sidquest from anywhere</p>
+              {#if hotkeyError}
+                <p class="text-xs text-red-400 mt-1">{hotkeyError}</p>
+              {/if}
+            </div>
+            {#if recordingHotkey}
+              <!-- svelte-ignore a11y_no_static_element_interactions -->
+              <div
+                class="px-3 py-1.5 rounded text-sm border border-[var(--color-accent)] bg-[var(--color-accent)]/10 text-[var(--color-text)] animate-pulse min-w-[80px] text-center"
+                tabindex="-1"
+                onkeydown={handleHotkeyCapture}
+                onblur={() => recordingHotkey = false}
+                use:focusEl
+              >
+                Press keys...
+              </div>
+            {:else}
+              <button
+                onclick={() => { recordingHotkey = true; hotkeyError = ''; }}
+                class="px-3 py-1.5 rounded text-sm border border-[var(--color-border)] text-[var(--color-text)] hover:border-[var(--color-text-muted)] transition-colors min-w-[80px] text-center"
+              >
+                {displayShortcut(settings.globalHotkey)}
+              </button>
             {/if}
           </div>
-          {#if recordingHotkey}
-            <!-- svelte-ignore a11y_no_static_element_interactions -->
-            <div
-              class="px-3 py-1.5 rounded text-sm border border-[var(--color-accent)] bg-[var(--color-accent)]/10 text-[var(--color-text)] animate-pulse min-w-[80px] text-center"
-              tabindex="-1"
-              onkeydown={handleHotkeyCapture}
-              onblur={() => recordingHotkey = false}
-              use:focusEl
-            >
-              Press keys...
+
+        {:else if activeTab === 'editor'}
+          <!-- Editor Font Size -->
+          <div class="flex items-center justify-between">
+            <div>
+              <label class="text-sm text-[var(--color-text)]">Font Size</label>
+              <p class="text-xs text-[var(--color-text-muted)]">{settings.editorFontSize}px (12–20)</p>
             </div>
-          {:else}
-            <button
-              onclick={() => { recordingHotkey = true; hotkeyError = ''; }}
-              class="px-3 py-1.5 rounded text-sm border border-[var(--color-border)] text-[var(--color-text)] hover:border-[var(--color-text-muted)] transition-colors min-w-[80px] text-center"
-            >
-              {displayShortcut(settings.globalHotkey)}
-            </button>
-          {/if}
-        </div>
-
-        <!-- Spell Check -->
-        <div class="flex items-center justify-between">
-          <div>
-            <label class="text-sm text-[var(--color-text)]">Spell Check</label>
-            <p class="text-xs text-[var(--color-text-muted)]">Highlight misspelled words in editor</p>
+            <div class="flex items-center gap-2">
+              <button
+                onclick={() => setFontSize(settings.editorFontSize - 1)}
+                class="w-7 h-7 rounded border border-[var(--color-border)] text-sm text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] transition-colors"
+              >-</button>
+              <span class="text-sm w-6 text-center">{settings.editorFontSize}</span>
+              <button
+                onclick={() => setFontSize(settings.editorFontSize + 1)}
+                class="w-7 h-7 rounded border border-[var(--color-border)] text-sm text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] transition-colors"
+              >+</button>
+            </div>
           </div>
-          <button
-            onclick={() => updateSettings({ spellCheck: !settings.spellCheck })}
-            aria-label="Toggle spell check"
-            class="relative w-10 h-6 rounded-full transition-colors {settings.spellCheck ? 'bg-[var(--color-accent)]' : 'bg-[var(--color-border)]'}"
-          >
-            <span
-              class="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform {settings.spellCheck ? 'translate-x-4' : ''}"
-            ></span>
-          </button>
-        </div>
-        <!-- AI & Models -->
-        <div class="pt-3 border-t border-[var(--color-border)]">
-          <label class="text-xs font-medium text-[var(--color-text-muted)] uppercase tracking-wide mb-2 block">AI & Models</label>
 
+          <!-- Spell Check -->
+          <div class="flex items-center justify-between">
+            <div>
+              <label class="text-sm text-[var(--color-text)]">Spell Check</label>
+              <p class="text-xs text-[var(--color-text-muted)]">Highlight misspelled words in editor</p>
+            </div>
+            <button
+              onclick={() => updateSettings({ spellCheck: !settings.spellCheck })}
+              aria-label="Toggle spell check"
+              class="relative w-10 h-6 rounded-full transition-colors {settings.spellCheck ? 'bg-[var(--color-accent)]' : 'bg-[var(--color-border)]'}"
+            >
+              <span
+                class="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform {settings.spellCheck ? 'translate-x-4' : ''}"
+              ></span>
+            </button>
+          </div>
+
+        {:else if activeTab === 'ai'}
           <!-- Provider Toggle -->
-          <div class="flex gap-2 mb-3">
-            <button
-              onclick={() => updateSettings({ aiProvider: 'local' })}
-              class="flex-1 px-3 py-1.5 rounded text-xs border transition-colors {settings.aiProvider === 'local' ? 'border-[var(--color-accent)] bg-[var(--color-accent)]/10 text-[var(--color-text)]' : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-text-muted)]'}"
-            >Local</button>
-            <button
-              onclick={() => updateSettings({ aiProvider: 'cloud' })}
-              class="flex-1 px-3 py-1.5 rounded text-xs border transition-colors {settings.aiProvider === 'cloud' ? 'border-[var(--color-accent)] bg-[var(--color-accent)]/10 text-[var(--color-text)]' : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-text-muted)]'}"
-            >Cloud (Claude)</button>
+          <div>
+            <label class="text-xs font-medium text-[var(--color-text-muted)] uppercase tracking-wide mb-2 block">Provider</label>
+            <div class="flex gap-2">
+              <button
+                onclick={() => updateSettings({ aiProvider: 'local' })}
+                class="flex-1 px-3 py-1.5 rounded text-xs border transition-colors {settings.aiProvider === 'local' ? 'border-[var(--color-accent)] bg-[var(--color-accent)]/10 text-[var(--color-text)]' : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-text-muted)]'}"
+              >Local</button>
+              <button
+                onclick={() => updateSettings({ aiProvider: 'cloud' })}
+                class="flex-1 px-3 py-1.5 rounded text-xs border transition-colors {settings.aiProvider === 'cloud' ? 'border-[var(--color-accent)] bg-[var(--color-accent)]/10 text-[var(--color-text)]' : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-text-muted)]'}"
+              >Cloud (Claude)</button>
+            </div>
           </div>
 
           {#if settings.aiProvider === 'cloud'}
             <!-- Claude API Key -->
-            <div class="flex gap-2 mb-3">
-              <div class="flex-1 relative">
-                <input
-                  type={showApiKey ? 'text' : 'password'}
-                  value={settings.claudeApiKey}
-                  oninput={(e) => { updateSettings({ claudeApiKey: (e.target as HTMLInputElement).value }); connectionResult = null; }}
-                  placeholder="sk-ant-..."
-                  class="w-full px-2 py-1.5 rounded text-xs border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent)]"
-                />
+            <div>
+              <label class="text-xs font-medium text-[var(--color-text-muted)] uppercase tracking-wide mb-2 block">API Key</label>
+              <div class="flex gap-2">
+                <div class="flex-1 relative">
+                  <input
+                    type={showApiKey ? 'text' : 'password'}
+                    value={settings.claudeApiKey}
+                    oninput={(e) => { updateSettings({ claudeApiKey: (e.target as HTMLInputElement).value }); connectionResult = null; }}
+                    placeholder="sk-ant-..."
+                    class="w-full px-2 py-1.5 rounded text-xs border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent)]"
+                  />
+                  <button
+                    onclick={() => showApiKey = !showApiKey}
+                    class="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+                  >{showApiKey ? 'Hide' : 'Show'}</button>
+                </div>
                 <button
-                  onclick={() => showApiKey = !showApiKey}
-                  class="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
-                >{showApiKey ? 'Hide' : 'Show'}</button>
+                  onclick={testClaudeKey}
+                  disabled={!settings.claudeApiKey || testingConnection}
+                  class="px-2 py-1.5 rounded text-xs border border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-text-muted)] transition-colors disabled:opacity-50"
+                >{testingConnection ? '...' : 'Test'}</button>
               </div>
-              <button
-                onclick={testClaudeKey}
-                disabled={!settings.claudeApiKey || testingConnection}
-                class="px-2 py-1.5 rounded text-xs border border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-text-muted)] transition-colors disabled:opacity-50"
-              >{testingConnection ? '...' : 'Test'}</button>
+              {#if connectionResult}
+                <p class="text-xs mt-1.5 {connectionResult.ok ? 'text-green-400' : 'text-red-400'}">{connectionResult.message}</p>
+              {/if}
             </div>
-            {#if connectionResult}
-              <p class="text-xs mb-2 {connectionResult.ok ? 'text-green-400' : 'text-red-400'}">{connectionResult.message}</p>
-            {/if}
           {/if}
 
           <!-- Models list -->
-          <div class="flex flex-col gap-0.5">
-            {#each [...allModels, ...customModels] as model}
-              {@const entry = modelState.localModels[model.id]}
-              {@const status = entry?.status ?? 'unknown'}
-              {@const isActiveGen = settings.aiProvider === 'local' && model.model_type === 'generation' && settings.localModelId === model.id}
-              <div class="flex items-center gap-3 px-2 py-1.5 rounded transition-colors {isActiveGen ? 'bg-[var(--color-accent)]/10' : 'hover:bg-[var(--color-surface-hover)]'}">
-                {#if model.model_type === 'generation' && settings.aiProvider === 'local'}
-                  <!-- svelte-ignore a11y_no_static_element_interactions -->
-                  <button
-                    onclick={() => { if (status === 'ready') updateSettings({ localModelId: model.id }); }}
-                    class="w-3 h-3 rounded-full border-2 shrink-0 {isActiveGen ? 'border-[var(--color-accent)] bg-[var(--color-accent)]' : status === 'ready' ? 'border-[var(--color-border)] hover:border-[var(--color-text-muted)]' : 'border-[var(--color-border)] opacity-30 cursor-not-allowed'}"
-                  ></button>
-                {:else}
-                  <span class="w-3 h-3 shrink-0"></span>
-                {/if}
-                <div class="flex-1 min-w-0">
-                  <span class="text-xs text-[var(--color-text)]">{model.name}</span>
-                  <span class="text-[10px] text-[var(--color-text-muted)]"> · {model.size_bytes > 0 ? formatBytes(model.size_bytes) : model.filename}{#if model.custom} · custom{/if}</span>
-                </div>
-                <div class="flex items-center gap-1.5 shrink-0">
-                  {#if status === 'ready'}
-                    <span class="w-2 h-2 rounded-full bg-green-400"></span>
+          <div>
+            <label class="text-xs font-medium text-[var(--color-text-muted)] uppercase tracking-wide mb-2 block">Models</label>
+            <div class="flex flex-col gap-0.5">
+              {#each [...allModels, ...customModels] as model}
+                {@const entry = modelState.localModels[model.id]}
+                {@const status = entry?.status ?? 'unknown'}
+                {@const isActiveGen = settings.aiProvider === 'local' && model.model_type === 'generation' && settings.localModelId === model.id}
+                <div class="flex items-center gap-3 px-2 py-1.5 rounded transition-colors {isActiveGen ? 'bg-[var(--color-accent)]/10' : 'hover:bg-[var(--color-surface-hover)]'}">
+                  {#if model.model_type === 'generation' && settings.aiProvider === 'local'}
+                    <!-- svelte-ignore a11y_no_static_element_interactions -->
                     <button
-                      onclick={() => model.custom ? handleRemoveCustomModel(model.id) : deleteLocalModel(model.id)}
-                      class="text-[10px] text-[var(--color-text-muted)] hover:text-red-400 transition-colors"
-                    >remove</button>
-                  {:else if status === 'downloading'}
-                    <span class="text-[10px] text-[var(--color-accent)] animate-pulse">{entry?.progress ?? 0}%</span>
+                      onclick={() => { if (status === 'ready') updateSettings({ localModelId: model.id }); }}
+                      class="w-3 h-3 rounded-full border-2 shrink-0 {isActiveGen ? 'border-[var(--color-accent)] bg-[var(--color-accent)]' : status === 'ready' ? 'border-[var(--color-border)] hover:border-[var(--color-text-muted)]' : 'border-[var(--color-border)] opacity-30 cursor-not-allowed'}"
+                    ></button>
                   {:else}
-                    <span class="w-2 h-2 rounded-full bg-[var(--color-border)]"></span>
-                    <button
-                      onclick={() => model.custom ? downloadCustomModel(model) : downloadLocalModel(model.id)}
-                      class="text-[10px] text-[var(--color-accent)] hover:text-[var(--color-accent-hover)] transition-colors"
-                    >download</button>
-                    {#if model.custom}
-                      <button
-                        onclick={() => handleRemoveCustomModel(model.id)}
-                        class="text-[10px] text-[var(--color-text-muted)] hover:text-red-400 transition-colors"
-                      >&times;</button>
-                    {/if}
+                    <span class="w-3 h-3 shrink-0"></span>
                   {/if}
+                  <div class="flex-1 min-w-0">
+                    <span class="text-xs text-[var(--color-text)]">{model.name}</span>
+                    <span class="text-[10px] text-[var(--color-text-muted)]"> · {model.size_bytes > 0 ? formatBytes(model.size_bytes) : model.filename}{#if model.custom} · custom{/if}</span>
+                  </div>
+                  <div class="flex items-center gap-1.5 shrink-0">
+                    {#if status === 'ready'}
+                      <span class="w-2 h-2 rounded-full bg-green-400"></span>
+                      <button
+                        onclick={() => model.custom ? handleRemoveCustomModel(model.id) : deleteLocalModel(model.id)}
+                        class="text-[10px] text-[var(--color-text-muted)] hover:text-red-400 transition-colors"
+                      >remove</button>
+                    {:else if status === 'downloading'}
+                      <span class="text-[10px] text-[var(--color-accent)] animate-pulse">{entry?.progress ?? 0}%</span>
+                    {:else}
+                      <span class="w-2 h-2 rounded-full bg-[var(--color-border)]"></span>
+                      <button
+                        onclick={() => model.custom ? downloadCustomModel(model) : downloadLocalModel(model.id)}
+                        class="text-[10px] text-[var(--color-accent)] hover:text-[var(--color-accent-hover)] transition-colors"
+                      >download</button>
+                      {#if model.custom}
+                        <button
+                          onclick={() => handleRemoveCustomModel(model.id)}
+                          class="text-[10px] text-[var(--color-text-muted)] hover:text-red-400 transition-colors"
+                        >&times;</button>
+                      {/if}
+                    {/if}
+                  </div>
                 </div>
-              </div>
-            {/each}
+              {/each}
+            </div>
           </div>
 
           <!-- Add custom model -->
           {#if showAddModel}
-            <div class="mt-2 px-2.5 py-3 rounded border border-[var(--color-accent)] bg-[var(--color-bg)] flex flex-col gap-2">
+            <div class="px-2.5 py-3 rounded border border-[var(--color-accent)] bg-[var(--color-bg)] flex flex-col gap-2">
               <input type="text" bind:value={newModelName} placeholder="Model name (e.g., Qwen 2.5 7B)" class="px-2 py-1.5 rounded text-xs border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text)] placeholder:text-[var(--color-text-muted)] outline-none focus:border-[var(--color-accent)]" />
               <input type="text" bind:value={newModelUrl} placeholder="HuggingFace GGUF URL" class="px-2 py-1.5 rounded text-xs border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text)] placeholder:text-[var(--color-text-muted)] outline-none focus:border-[var(--color-accent)]" />
               <div class="flex items-center gap-2">
@@ -371,17 +396,17 @@
                 </select>
               </div>
               <div class="flex justify-end gap-2">
-                <button onclick={() => showAddModel = false} class="text-xs px-3 py-1 rounded text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] transition-colors">Cancel</button>
-                <button onclick={handleAddModel} disabled={!newModelUrl.trim() || !newModelName.trim() || addingModel} class="text-xs px-3 py-1 rounded bg-[var(--color-accent)] text-white hover:bg-[var(--color-accent-hover)] transition-colors disabled:opacity-50">{addingModel ? 'Adding...' : 'Add & Download'}</button>
+                <button onclick={() => showAddModel = false} class="text-sm px-3 py-1.5 rounded text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] transition-colors">Cancel</button>
+                <button onclick={handleAddModel} disabled={!newModelUrl.trim() || !newModelName.trim() || addingModel} class="text-sm px-3 py-1.5 rounded bg-[var(--color-accent)] text-white hover:bg-[var(--color-accent-hover)] transition-colors disabled:opacity-50">{addingModel ? 'Adding...' : 'Add & Download'}</button>
               </div>
             </div>
           {:else}
             <button
               onclick={() => showAddModel = true}
-              class="mt-1 w-full text-left px-2 py-1.5 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] rounded transition-colors"
+              class="w-full text-left px-2 py-1.5 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] rounded transition-colors"
             >+ Add Model from HuggingFace</button>
           {/if}
-        </div>
+        {/if}
       </div>
 
       <div class="mt-6 pt-4 border-t border-[var(--color-border)] flex justify-between items-center">

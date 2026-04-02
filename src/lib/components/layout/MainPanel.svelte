@@ -8,12 +8,13 @@
   import ConfirmDeleteModal from '../modals/ConfirmDeleteModal.svelte';
   import ExtractEntitiesModal from '../modals/ExtractEntitiesModal.svelte';
   import { chatState, openChat } from '$lib/state/chatState.svelte';
+  import { showToast } from '$lib/state/toastState.svelte';
+
+  let { onNewGame }: { onNewGame?: () => void } = $props();
 
   let confirmDeleteNoteId = $state<string | null>(null);
   let confirmDeleteSessionNoteId = $state<string | null>(null);
   let showExtractEntities = $state(false);
-  let extractFlash = $state<string | null>(null);
-  let extractFlashTimer: ReturnType<typeof setTimeout> | null = null;
 
   // === Entity editing ===
   let editingEntityName = $state(false);
@@ -80,34 +81,48 @@
     sessionState.sessionNotes.find(n => n.id === sessionState.activeSessionNoteId) ?? null
   );
 
-  // === Tab editing (shared) ===
-  let editingTabId = $state<string | null>(null);
-  let editingTitle = $state('');
-
-  function startRename(note: { id: string; title: string }) {
-    editingTabId = note.id;
-    editingTitle = note.title;
-  }
-
-  async function commitRename(isSession: boolean) {
-    if (editingTabId) {
-      if (isSession) {
-        await renameSessionNote(editingTabId, editingTitle);
-      } else {
-        await renameNote(editingTabId, editingTitle);
-      }
-      editingTabId = null;
-    }
-  }
-
   function selectAll(node: HTMLInputElement) {
     node.focus();
     node.select();
   }
 
-  function handleRenameKeydown(e: KeyboardEvent, isSession: boolean) {
-    if (e.key === 'Enter') { e.preventDefault(); commitRename(isSession); }
-    else if (e.key === 'Escape') { editingTabId = null; }
+  // === Tab inline editing (shared) ===
+  let editingTabId = $state<string | null>(null);
+
+  function startTabEdit(noteId: string, el: HTMLElement) {
+    editingTabId = noteId;
+    el.contentEditable = 'true';
+    el.focus();
+    // Select all text
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    const sel = window.getSelection();
+    sel?.removeAllRanges();
+    sel?.addRange(range);
+  }
+
+  function commitTabEdit(noteId: string, el: HTMLElement, isSession: boolean) {
+    if (editingTabId !== noteId) return;
+    el.contentEditable = 'false';
+    const newTitle = el.textContent?.trim() || '';
+    editingTabId = null;
+    if (!newTitle) return;
+    if (isSession) {
+      renameSessionNote(noteId, newTitle);
+    } else {
+      renameNote(noteId, newTitle);
+    }
+  }
+
+  function handleTabEditKeydown(e: KeyboardEvent, noteId: string, isSession: boolean) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      commitTabEdit(noteId, e.target as HTMLElement, isSession);
+    } else if (e.key === 'Escape') {
+      editingTabId = null;
+      (e.target as HTMLElement).contentEditable = 'false';
+      // Restore original text — the DOM still has the source of truth from Svelte reactivity
+    }
   }
 
   // === New note handlers ===
@@ -211,8 +226,9 @@
             class="text-lg font-semibold bg-[var(--color-bg)] border border-[var(--color-border)] rounded px-2 py-0.5 outline-none text-[var(--color-text)]"
           />
         {:else}
-          <h2 class="text-lg font-semibold cursor-pointer" ondblclick={startSessionRename}>
+          <h2 class="group/title text-lg font-semibold cursor-pointer flex items-center gap-1.5" ondblclick={startSessionRename} title="Double-click to rename">
             📅 {activeSession.name}
+            <span class="opacity-0 group-hover/title:opacity-40 text-xs transition-opacity">&#9998;</span>
           </h2>
         {/if}
         {#if activeSession.sessionDate}
@@ -220,9 +236,6 @@
         {/if}
       </div>
       <div class="flex items-center gap-2">
-        {#if extractFlash}
-          <span class="text-xs text-green-400">{extractFlash}</span>
-        {/if}
         {#if sortedSessionNotes.length > 0}
           <button
             onclick={() => showExtractEntities = true}
@@ -244,40 +257,33 @@
     {#if sortedSessionNotes.length > 0}
       <div class="flex gap-1 px-4 pt-2 border-b border-[var(--color-border)] overflow-x-auto" bind:this={tabContainerEl}>
         {#each sortedSessionNotes as note}
-          {#if editingTabId === note.id}
-            <input
-              type="text"
-              bind:value={editingTitle}
-              onblur={() => commitRename(true)}
-              onkeydown={(e) => handleRenameKeydown(e, true)}
-              use:selectAll
-              class="px-3 py-1.5 text-sm rounded-t bg-[var(--color-surface)] text-[var(--color-text)] border border-b-0 border-[var(--color-border)] outline-none w-32"
-            />
-          {:else}
-            <div
-              class="group relative flex items-center gap-0.5 rounded-t transition-colors {tabDragging && tabDragId === note.id ? 'opacity-40' : ''} {note.id === sessionState.activeSessionNoteId ? 'bg-[var(--color-surface)] border border-b-0 border-[var(--color-border)]' : ''}"
-              data-tab-id={note.id}
-            >
-              {#if tabDropTargetId === note.id}
-                <div class="absolute top-0 bottom-0 w-0.5 bg-[var(--color-accent)] pointer-events-none z-10" style={tabDropPosition === 'left' ? 'left: -2px' : 'right: -2px'}></div>
-              {/if}
+          <div
+            class="group relative flex items-center gap-0.5 rounded-t transition-colors shrink-0 {tabDragging && tabDragId === note.id ? 'opacity-40' : ''} {note.id === sessionState.activeSessionNoteId ? 'bg-[var(--color-surface)] border border-b-0 border-[var(--color-border)]' : ''}"
+            data-tab-id={note.id}
+          >
+            {#if tabDropTargetId === note.id}
+              <div class="absolute top-0 bottom-0 w-0.5 bg-[var(--color-accent)] pointer-events-none z-10" style={tabDropPosition === 'left' ? 'left: -2px' : 'right: -2px'}></div>
+            {/if}
+            <!-- svelte-ignore a11y_no_static_element_interactions -->
+            <span
+              role="tab"
+              tabindex="0"
+              onclick={() => { if (editingTabId !== note.id) sessionState.activeSessionNoteId = note.id; }}
+              ondblclick={(e) => startTabEdit(note.id, e.currentTarget)}
+              onblur={(e) => commitTabEdit(note.id, e.currentTarget, true)}
+              onkeydown={(e) => { if (editingTabId === note.id) handleTabEditKeydown(e, note.id, true); }}
+              onpointerdown={(e) => { if (editingTabId !== note.id) handleTabPointerDown(e, note.id, true); }}
+              title="Double-click to rename"
+              class="px-3 py-1.5 text-sm transition-colors whitespace-nowrap outline-none {editingTabId !== note.id ? 'cursor-grab active:cursor-grabbing' : 'cursor-text'} {note.id === sessionState.activeSessionNoteId ? 'text-[var(--color-text)]' : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'}"
+            >{note.title}</span>
+            {#if sortedSessionNotes.length > 1 && editingTabId !== note.id}
               <button
-                onclick={() => sessionState.activeSessionNoteId = note.id}
-                ondblclick={() => startRename(note)}
-                onpointerdown={(e) => handleTabPointerDown(e, note.id, true)}
-                class="px-3 py-1.5 text-sm transition-colors cursor-grab active:cursor-grabbing {note.id === sessionState.activeSessionNoteId ? 'text-[var(--color-text)]' : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'}"
-              >
-                {note.title}
-              </button>
-              {#if sortedSessionNotes.length > 1}
-                <button
-                  onclick={(e) => { e.stopPropagation(); confirmDeleteSessionNoteId = note.id; }}
-                  title="Delete note"
-                  class="opacity-0 group-hover:opacity-100 px-1 py-0.5 text-xs text-[var(--color-text-muted)] hover:text-red-400 transition-opacity"
-                >&times;</button>
-              {/if}
-            </div>
-          {/if}
+                onclick={(e) => { e.stopPropagation(); confirmDeleteSessionNoteId = note.id; }}
+                title="Delete note"
+                class="opacity-0 group-hover:opacity-100 px-1 py-0.5 text-xs text-[var(--color-text-muted)] hover:text-red-400 transition-opacity"
+              >&times;</button>
+            {/if}
+          </div>
         {/each}
       </div>
     {/if}
@@ -292,8 +298,14 @@
           />
         {/key}
       {:else}
-        <div class="flex-1 flex items-center justify-center p-4">
-          <p class="text-[var(--color-text-muted)]">Create a note to start recording this session.</p>
+        <div class="flex-1 flex flex-col items-center justify-center p-4 gap-3">
+          <p class="text-[var(--color-text-muted)]">No notes in this session yet.</p>
+          <button
+            onclick={handleNewSessionNote}
+            class="text-sm px-4 py-2 rounded bg-[var(--color-accent)] hover:bg-[var(--color-accent-hover)] text-white transition-colors"
+          >
+            + Create Note
+          </button>
         </div>
       {/if}
     </div>
@@ -311,7 +323,10 @@
           class="text-lg font-semibold bg-[var(--color-bg)] border border-[var(--color-border)] rounded px-2 py-0.5 outline-none text-[var(--color-text)]"
         />
       {:else}
-        <h2 class="text-lg font-semibold cursor-pointer" ondblclick={startEntityRename}>{activeEntity.name}</h2>
+        <h2 class="group/title text-lg font-semibold cursor-pointer flex items-center gap-1.5" ondblclick={startEntityRename} title="Double-click to rename">
+          {activeEntity.name}
+          <span class="opacity-0 group-hover/title:opacity-40 text-xs transition-opacity">&#9998;</span>
+        </h2>
       {/if}
       <button
         onclick={handleNewNote}
@@ -324,40 +339,33 @@
     {#if entityNotes.length > 0}
       <div class="flex gap-1 px-4 pt-2 border-b border-[var(--color-border)] overflow-x-auto" bind:this={tabContainerEl}>
         {#each entityNotes as note}
-          {#if editingTabId === note.id}
-            <input
-              type="text"
-              bind:value={editingTitle}
-              onblur={() => commitRename(false)}
-              onkeydown={(e) => handleRenameKeydown(e, false)}
-              use:selectAll
-              class="px-3 py-1.5 text-sm rounded-t bg-[var(--color-surface)] text-[var(--color-text)] border border-b-0 border-[var(--color-border)] outline-none w-32"
-            />
-          {:else}
-            <div
-              class="group relative flex items-center gap-0.5 rounded-t transition-colors {tabDragging && tabDragId === note.id ? 'opacity-40' : ''} {note.id === noteState.activeNoteId ? 'bg-[var(--color-surface)] border border-b-0 border-[var(--color-border)]' : ''}"
-              data-tab-id={note.id}
-            >
-              {#if tabDropTargetId === note.id}
-                <div class="absolute top-0 bottom-0 w-0.5 bg-[var(--color-accent)] pointer-events-none z-10" style={tabDropPosition === 'left' ? 'left: -2px' : 'right: -2px'}></div>
-              {/if}
+          <div
+            class="group relative flex items-center gap-0.5 rounded-t transition-colors shrink-0 {tabDragging && tabDragId === note.id ? 'opacity-40' : ''} {note.id === noteState.activeNoteId ? 'bg-[var(--color-surface)] border border-b-0 border-[var(--color-border)]' : ''}"
+            data-tab-id={note.id}
+          >
+            {#if tabDropTargetId === note.id}
+              <div class="absolute top-0 bottom-0 w-0.5 bg-[var(--color-accent)] pointer-events-none z-10" style={tabDropPosition === 'left' ? 'left: -2px' : 'right: -2px'}></div>
+            {/if}
+            <!-- svelte-ignore a11y_no_static_element_interactions -->
+            <span
+              role="tab"
+              tabindex="0"
+              onclick={() => { if (editingTabId !== note.id) noteState.activeNoteId = note.id; }}
+              ondblclick={(e) => startTabEdit(note.id, e.currentTarget)}
+              onblur={(e) => commitTabEdit(note.id, e.currentTarget, false)}
+              onkeydown={(e) => { if (editingTabId === note.id) handleTabEditKeydown(e, note.id, false); }}
+              onpointerdown={(e) => { if (editingTabId !== note.id) handleTabPointerDown(e, note.id, false); }}
+              title="Double-click to rename"
+              class="px-3 py-1.5 text-sm transition-colors whitespace-nowrap outline-none {editingTabId !== note.id ? 'cursor-grab active:cursor-grabbing' : 'cursor-text'} {note.id === noteState.activeNoteId ? 'text-[var(--color-text)]' : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'}"
+            >{note.title}</span>
+            {#if entityNotes.length > 1 && editingTabId !== note.id}
               <button
-                onclick={() => noteState.activeNoteId = note.id}
-                ondblclick={() => startRename(note)}
-                onpointerdown={(e) => handleTabPointerDown(e, note.id, false)}
-                class="px-3 py-1.5 text-sm transition-colors cursor-grab active:cursor-grabbing {note.id === noteState.activeNoteId ? 'text-[var(--color-text)]' : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'}"
-              >
-                {note.title}
-              </button>
-              {#if entityNotes.length > 1}
-                <button
-                  onclick={(e) => { e.stopPropagation(); confirmDeleteNoteId = note.id; }}
-                  title="Delete note"
-                  class="opacity-0 group-hover:opacity-100 px-1 py-0.5 text-xs text-[var(--color-text-muted)] hover:text-red-400 transition-opacity"
-                >&times;</button>
-              {/if}
-            </div>
-          {/if}
+                onclick={(e) => { e.stopPropagation(); confirmDeleteNoteId = note.id; }}
+                title="Delete note"
+                class="opacity-0 group-hover:opacity-100 px-1 py-0.5 text-xs text-[var(--color-text-muted)] hover:text-red-400 transition-opacity"
+              >&times;</button>
+            {/if}
+          </div>
         {/each}
       </div>
     {/if}
@@ -373,15 +381,36 @@
           <BacklinksPanel noteId={activeNote.id} />
         {/key}
       {:else}
-        <div class="flex-1 flex items-center justify-center p-4">
-          <p class="text-[var(--color-text-muted)]">Create a note to get started.</p>
+        <div class="flex-1 flex flex-col items-center justify-center p-4 gap-3">
+          <p class="text-[var(--color-text-muted)]">No notes for this entity yet.</p>
+          <button
+            onclick={handleNewNote}
+            class="text-sm px-4 py-2 rounded bg-[var(--color-accent)] hover:bg-[var(--color-accent-hover)] text-white transition-colors"
+          >
+            + Create Note
+          </button>
         </div>
       {/if}
     </div>
 
   {:else}
-    <div class="flex-1 flex items-center justify-center">
-      <p class="text-[var(--color-text-muted)]">Select a session or entity from the sidebar to view notes.</p>
+    <div class="flex-1 flex flex-col items-center justify-center gap-4">
+      {#if gameState.games.length === 0}
+        <p class="text-lg text-[var(--color-text-muted)]">Welcome to Sidquest</p>
+        <p class="text-sm text-[var(--color-text-muted)]">Create a game to start tracking your campaign.</p>
+        {#if onNewGame}
+          <button
+            onclick={onNewGame}
+            class="px-5 py-2.5 rounded-lg bg-[var(--color-accent)] hover:bg-[var(--color-accent-hover)] text-white text-sm transition-colors"
+          >
+            + Create Your First Game
+          </button>
+        {/if}
+      {:else if !gameState.activeGameId}
+        <p class="text-[var(--color-text-muted)]">Select a game from the sidebar to get started.</p>
+      {:else}
+        <p class="text-[var(--color-text-muted)]">Select a session or entity from the sidebar.</p>
+      {/if}
     </div>
   {/if}
 
@@ -403,7 +432,7 @@
     title="Delete Note"
     message="Are you sure you want to delete &quot;{noteToDelete?.title ?? 'this note'}&quot;? This cannot be undone."
     onClose={() => confirmDeleteNoteId = null}
-    onConfirm={async () => { await deleteNote(confirmDeleteNoteId!); confirmDeleteNoteId = null; }}
+    onConfirm={async () => { await deleteNote(confirmDeleteNoteId!); confirmDeleteNoteId = null; showToast('Note deleted', 'info'); }}
   />
 {/if}
 
@@ -412,9 +441,7 @@
     onClose={() => showExtractEntities = false}
     onExtracted={(count) => {
       showExtractEntities = false;
-      if (extractFlashTimer) clearTimeout(extractFlashTimer);
-      extractFlash = `Created ${count} entities`;
-      extractFlashTimer = setTimeout(() => { extractFlash = null; }, 3000);
+      showToast(`Created ${count} ${count === 1 ? 'entity' : 'entities'}`, 'success');
     }}
   />
 {/if}
@@ -425,6 +452,6 @@
     title="Delete Session Note"
     message="Are you sure you want to delete &quot;{noteToDelete?.title ?? 'this note'}&quot;? This cannot be undone."
     onClose={() => confirmDeleteSessionNoteId = null}
-    onConfirm={async () => { await deleteSessionNote(confirmDeleteSessionNoteId!); confirmDeleteSessionNoteId = null; }}
+    onConfirm={async () => { await deleteSessionNote(confirmDeleteSessionNoteId!); confirmDeleteSessionNoteId = null; showToast('Note deleted', 'info'); }}
   />
 {/if}

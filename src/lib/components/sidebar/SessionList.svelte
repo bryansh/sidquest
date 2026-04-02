@@ -76,6 +76,7 @@
             <button
               onclick={() => onSelectSession(session.id)}
               ondblclick={(e) => { e.preventDefault(); startEdit(session); }}
+              title="Double-click to rename"
               class="flex-1 flex items-center justify-between px-3 py-1.5 text-sm rounded transition-colors text-left min-w-0 {session.id === activeSessionId
                 ? 'bg-[var(--color-accent)]/15 text-[var(--color-text)]'
                 : 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]'}"

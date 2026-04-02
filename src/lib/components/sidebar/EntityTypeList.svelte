@@ -260,11 +260,12 @@
               ></div>
             {/if}
             <span
-              class="flex items-center px-2 py-1.5 cursor-grab active:cursor-grabbing text-[var(--color-text-muted)] text-sm select-none opacity-0 group-hover:opacity-50"
+              class="flex items-center px-2 py-1.5 cursor-grab active:cursor-grabbing text-[var(--color-text-muted)] text-sm select-none opacity-20 hover:opacity-50"
               onpointerdown={(e) => handlePointerDown(e, entityType.id)}
             >⠿</span>
             <Collapsible.Trigger
               ondblclick={(e) => { e.preventDefault(); startEdit(entityType); }}
+              title="Double-click to rename"
               class="flex-1 flex items-center justify-between pr-1 py-1.5 text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)] hover:text-[var(--color-text)] rounded transition-colors"
             >
               <span class="flex items-center gap-1.5">
@@ -295,7 +296,7 @@
                 ></div>
               {/if}
               <span
-                class="flex items-center px-1 py-1 cursor-grab active:cursor-grabbing text-[var(--color-text-muted)] text-xs select-none opacity-0 group-hover/entity:opacity-50"
+                class="flex items-center px-1 py-1 cursor-grab active:cursor-grabbing text-[var(--color-text-muted)] text-xs select-none opacity-20 hover:opacity-50"
                 onpointerdown={(e) => handleEntityPointerDown(e, entity.id, entityType.id)}
               >⠿</span>
               <div class="flex-1 min-w-0">
