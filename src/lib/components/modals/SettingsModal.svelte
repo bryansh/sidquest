@@ -1,6 +1,7 @@
 <script lang="ts">
   import { Dialog } from 'bits-ui';
   import { invoke } from '@tauri-apps/api/core';
+  import { getVersion } from '@tauri-apps/api/app';
   import { settings, updateSettings, accentColors, formatShortcut, displayShortcut, type Theme, type AccentColor, type AIProvider } from '$lib/state/settingsState.svelte';
   import { modelState, checkLocalModel, downloadLocalModel, deleteLocalModel, loadCustomModels, saveCustomModel, removeCustomModel, downloadCustomModel, checkCustomModel, setCachedCustomModels } from '$lib/state/modelState.svelte';
   import { type LocalModelDef, formatBytes, filenameFromUrl, CHAT_TEMPLATES } from '$lib/models';
@@ -38,6 +39,7 @@
   let connectionResult = $state<{ ok: boolean; message: string } | null>(null);
   let showApiKey = $state(false);
 
+  let appVersion = $state('');
   let allModels = $state<LocalModelDef[]>([]);
   let customModels = $state<LocalModelDef[]>([]);
   let showAddModel = $state(false);
@@ -47,6 +49,7 @@
   let addingModel = $state(false);
 
   onMount(async () => {
+    getVersion().then(v => appVersion = v).catch(() => {});
     try {
       availableModels = await invoke<LocalModelDef[]>('get_available_models');
       allModels = await invoke<LocalModelDef[]>('get_all_models');
@@ -410,7 +413,7 @@
       </div>
 
       <div class="mt-6 pt-4 border-t border-[var(--color-border)] flex justify-between items-center">
-        <span class="text-xs text-[var(--color-text-muted)]">Sidquest v0.1.0</span>
+        <span class="text-xs text-[var(--color-text-muted)]">Sidquest{appVersion ? ` v${appVersion}` : ''}</span>
         <button
           onclick={onClose}
           class="px-4 py-1.5 rounded text-sm bg-[var(--color-surface-hover)] text-[var(--color-text)] hover:bg-[var(--color-border)] transition-colors"
