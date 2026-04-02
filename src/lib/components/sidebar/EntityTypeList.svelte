@@ -260,13 +260,13 @@
               ></div>
             {/if}
             <span
-              class="flex items-center px-2 py-1.5 cursor-grab active:cursor-grabbing text-[var(--color-text-muted)] text-sm select-none opacity-20 hover:opacity-50"
+              class="absolute left-0 top-0 bottom-0 flex items-center pl-0.5 cursor-grab active:cursor-grabbing text-[var(--color-text-muted)] text-xs select-none opacity-20 hover:opacity-50 z-10"
               onpointerdown={(e) => handlePointerDown(e, entityType.id)}
             >⠿</span>
             <Collapsible.Trigger
               ondblclick={(e) => { e.preventDefault(); startEdit(entityType); }}
               title="Double-click to rename"
-              class="flex-1 flex items-center justify-between pr-1 py-1.5 text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)] hover:text-[var(--color-text)] rounded transition-colors"
+              class="flex-1 flex items-center justify-between px-2 py-1.5 text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)] hover:text-[var(--color-text)] rounded transition-colors"
             >
               <span class="flex items-center gap-1.5">
                 {#if entityType.icon}<span>{entityType.icon}</span>{/if}
