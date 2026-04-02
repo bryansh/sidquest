@@ -1,15 +1,16 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { authState, checkSession } from '$lib/auth/authState.svelte';
-  import { loadGames, createGame, createEntityType, createEntity, deleteEntity, deleteGameById, renameEntity, renameEntityType, deleteEntityTypeById, reorderEntityTypes, reorderEntities, gameState } from '$lib/state/gameState.svelte';
-  import { selectEntity } from '$lib/state/noteState.svelte';
-  import { selectSession, createSession, deleteSession, renameSession, sessionState } from '$lib/state/sessionState.svelte';
+  import { loadGames, createGame, createEntityType, createEntity, deleteEntity, deleteGameById, renameEntity, renameEntityType, deleteEntityTypeById, reorderEntityTypes, reorderEntities, gameState, resetGameState } from '$lib/state/gameState.svelte';
+  import { selectEntity, resetNoteState } from '$lib/state/noteState.svelte';
+  import { selectSession, createSession, deleteSession, renameSession, sessionState, resetSessionState } from '$lib/state/sessionState.svelte';
   import { loadSettings, settings, updateSettings } from '$lib/state/settingsState.svelte';
   import { showToast } from '$lib/state/toastState.svelte';
   import { uiState } from '$lib/state/uiState.svelte';
   import { getLocalDb } from '$lib/db/local/sqlite';
   import { hydrateIfNeeded } from '$lib/db/sync/hydrate';
-  import { initSyncService } from '$lib/state/syncState.svelte';
+  import { initSyncService, stopSyncService } from '$lib/state/syncState.svelte';
+  import { resetChatState } from '$lib/state/chatState.svelte';
   import { loadCustomModels, setCachedCustomModels } from '$lib/state/modelState.svelte';
   import SignIn from '$lib/components/auth/SignIn.svelte';
   import TitleBar from '$lib/components/layout/TitleBar.svelte';
@@ -68,6 +69,16 @@
     initSyncService();
   }
 
+  async function handleSignOut() {
+    stopSyncService();
+    resetGameState();
+    resetNoteState();
+    resetSessionState();
+    resetChatState();
+    const { signOut } = await import('$lib/auth/authState.svelte');
+    await signOut();
+  }
+
   onMount(() => {
     checkSession().then(() => {
       if (authState.user) onAuthenticated(authState.user.id);
@@ -113,7 +124,7 @@
   </div>
 {:else}
   <div class="flex flex-col h-screen w-screen bg-[var(--color-bg)] overflow-hidden">
-    <TitleBar onOpenSettings={() => showSettings = true} />
+    <TitleBar onOpenSettings={() => showSettings = true} onSignOut={handleSignOut} />
     <div class="flex flex-1 overflow-hidden" style="--sidebar-width: {settings.sidebarWidth}px">
       <Sidebar
         onNewGame={() => showNewGame = true}

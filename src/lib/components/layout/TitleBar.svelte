@@ -1,10 +1,10 @@
 <script lang="ts">
   import { getCurrentWindow } from '@tauri-apps/api/window';
-  import { authState, signOut } from '$lib/auth/authState.svelte';
+  import { authState } from '$lib/auth/authState.svelte';
   import { settings, updateSettings } from '$lib/state/settingsState.svelte';
   import { syncState, triggerSync } from '$lib/state/syncState.svelte';
 
-  let { onOpenSettings }: { onOpenSettings: () => void } = $props();
+  let { onOpenSettings, onSignOut }: { onOpenSettings: () => void; onSignOut: () => void } = $props();
 
   function formatLastSync(iso: string | null): string {
     if (!iso) return 'Never synced';
@@ -60,7 +60,7 @@
 
       <span class="text-xs text-[var(--color-text-muted)] mr-1">{authState.user.email}</span>
       <button
-        onclick={signOut}
+        onclick={onSignOut}
         class="text-xs px-2 py-1 rounded text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] transition-colors"
       >
         Sign out

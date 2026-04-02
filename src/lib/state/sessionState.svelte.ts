@@ -30,6 +30,13 @@ export const sessionState = $state<{
   sessionNotes: [],
 });
 
+export function resetSessionState() {
+  sessionState.sessions = [];
+  sessionState.activeSessionId = null;
+  sessionState.activeSessionNoteId = null;
+  sessionState.sessionNotes = [];
+}
+
 export function clearActiveSession() {
   sessionState.activeSessionId = null;
   sessionState.activeSessionNoteId = null;

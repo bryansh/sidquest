@@ -41,6 +41,13 @@ export const gameState = $state<{
   entities: [],
 });
 
+export function resetGameState() {
+  gameState.games = [];
+  gameState.activeGameId = null;
+  gameState.entityTypes = [];
+  gameState.entities = [];
+}
+
 export async function loadGames(userId: string) {
   const rows = await gameQueries.getGames(userId);
   gameState.games = rows.map(r => ({

@@ -55,6 +55,10 @@ export function stopSyncService() {
   syncTimer = null;
   debounceTimer = null;
   initialized = false;
+  syncState.syncing = false;
+  syncState.lastSyncAt = null;
+  syncState.error = null;
+  syncState.pendingChanges = 0;
 }
 
 export function notifyWrite() {

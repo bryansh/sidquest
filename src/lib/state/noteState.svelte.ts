@@ -24,6 +24,13 @@ export const noteState = $state<{
   allGameNotes: [],
 });
 
+export function resetNoteState() {
+  noteState.activeEntityId = null;
+  noteState.activeNoteId = null;
+  noteState.notes = [];
+  noteState.allGameNotes = [];
+}
+
 export async function loadAllGameNotes(gameId: string) {
   const rows = await noteQueries.getNotesByGame(gameId);
   noteState.allGameNotes = rows.map(r => ({

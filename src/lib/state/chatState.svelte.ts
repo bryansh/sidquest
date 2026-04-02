@@ -26,6 +26,16 @@ function getGameMessages(): ChatMessage[] {
 	return chatState.messages[gameId];
 }
 
+export function resetChatState() {
+  chatState.open = false;
+  chatState.messages = {};
+  chatState.embeddingStatus = 'idle';
+  chatState.embeddingCount = 0;
+  chatState.embeddingError = '';
+  chatState.embeddingProgress = null;
+  chatState.thinking = false;
+}
+
 export function openChat() {
 	chatState.open = true;
 	indexNotes();
