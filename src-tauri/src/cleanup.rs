@@ -43,13 +43,15 @@ pub fn check_local_model(app: AppHandle, model_id: String) -> Result<bool, Strin
 
 #[tauri::command]
 pub async fn download_custom_model(app: AppHandle, window: tauri::WebviewWindow, url: String, filename: String) -> Result<(), String> {
-    use futures_util::StreamExt;
-
     let dir = app
         .path()
         .app_data_dir()
         .map_err(|e| format!("Failed to get app data dir: {}", e))?;
     let path = dir.join(&filename);
+    let partial_path = path.with_extension(format!(
+        "{}.partial",
+        path.extension().and_then(|s| s.to_str()).unwrap_or("")
+    ));
 
     if let Some(parent) = path.parent() {
         tokio::fs::create_dir_all(parent)
@@ -70,29 +72,20 @@ pub async fn download_custom_model(app: AppHandle, window: tauri::WebviewWindow,
         return Err(format!("File too small ({}B) — URL may be invalid", total));
     }
 
-    let mut downloaded: u64 = 0;
-
-    let mut file = tokio::fs::File::create(&path)
-        .await
-        .map_err(|e| format!("Failed to create file: {}", e))?;
-
-    let mut stream = response.bytes_stream();
-
-    while let Some(chunk) = stream.next().await {
-        let chunk = chunk.map_err(|e| format!("Download error: {}", e))?;
-        tokio::io::AsyncWriteExt::write_all(&mut file, &chunk)
-            .await
-            .map_err(|e| format!("Write error: {}", e))?;
-
-        downloaded += chunk.len() as u64;
-        let _ = window.emit("custom-model-progress", serde_json::json!({
-            "filename": filename,
-            "downloaded": downloaded,
-            "total": total,
-        }));
-    }
-
-    Ok(())
+    download_to_partial(
+        response,
+        &partial_path,
+        &path,
+        total,
+        |downloaded| {
+            let _ = window.emit("custom-model-progress", serde_json::json!({
+                "filename": filename,
+                "downloaded": downloaded,
+                "total": total,
+            }));
+        },
+    )
+    .await
 }
 
 #[tauri::command]
@@ -132,11 +125,13 @@ pub async fn delete_local_model(app: AppHandle, model_id: String) -> Result<(), 
 
 #[tauri::command]
 pub async fn download_local_model(app: AppHandle, window: tauri::WebviewWindow, model_id: String) -> Result<(), String> {
-    use futures_util::StreamExt;
-
     let model = get_model_by_id(&model_id)
         .ok_or_else(|| format!("Unknown model: {}", model_id))?;
     let path = model_path(&app, &model_id)?;
+    let partial_path = path.with_extension(format!(
+        "{}.partial",
+        path.extension().and_then(|s| s.to_str()).unwrap_or("")
+    ));
 
     if let Some(parent) = path.parent() {
         tokio::fs::create_dir_all(parent)
@@ -148,28 +143,93 @@ pub async fn download_local_model(app: AppHandle, window: tauri::WebviewWindow, 
         .await
         .map_err(|e| format!("Failed to download model: {}", e))?;
 
-    let total = response.content_length().unwrap_or(0);
-    let mut downloaded: u64 = 0;
+    if !response.status().is_success() {
+        return Err(format!("Download failed: HTTP {}", response.status()));
+    }
 
-    let mut file = tokio::fs::File::create(&path)
+    let total = response.content_length().unwrap_or(0);
+    if total > 0 && total < 1000 {
+        return Err(format!("File too small ({}B) — URL may be invalid", total));
+    }
+
+    download_to_partial(
+        response,
+        &partial_path,
+        &path,
+        total,
+        |downloaded| {
+            let _ = window.emit("local-model-progress", serde_json::json!({
+                "modelId": model_id,
+                "downloaded": downloaded,
+                "total": total,
+            }));
+        },
+    )
+    .await
+}
+
+async fn download_to_partial<F: Fn(u64)>(
+    response: reqwest::Response,
+    partial_path: &std::path::Path,
+    final_path: &std::path::Path,
+    total: u64,
+    on_progress: F,
+) -> Result<(), String> {
+    use futures_util::StreamExt;
+    use tokio::io::AsyncWriteExt;
+
+    // Clean up any leftover partial from a previous failed attempt
+    if partial_path.exists() {
+        let _ = tokio::fs::remove_file(partial_path).await;
+    }
+
+    let mut file = tokio::fs::File::create(partial_path)
         .await
         .map_err(|e| format!("Failed to create file: {}", e))?;
 
+    let mut downloaded: u64 = 0;
     let mut stream = response.bytes_stream();
 
     while let Some(chunk) = stream.next().await {
-        let chunk = chunk.map_err(|e| format!("Download error: {}", e))?;
-        tokio::io::AsyncWriteExt::write_all(&mut file, &chunk)
-            .await
-            .map_err(|e| format!("Write error: {}", e))?;
+        let chunk = match chunk {
+            Ok(c) => c,
+            Err(e) => {
+                let _ = tokio::fs::remove_file(partial_path).await;
+                return Err(format!("Download error: {}", e));
+            }
+        };
+        if let Err(e) = file.write_all(&chunk).await {
+            let _ = tokio::fs::remove_file(partial_path).await;
+            return Err(format!("Write error: {}", e));
+        }
 
         downloaded += chunk.len() as u64;
-        let _ = window.emit("local-model-progress", serde_json::json!({
-            "modelId": model_id,
-            "downloaded": downloaded,
-            "total": total,
-        }));
+        on_progress(downloaded);
     }
+
+    // Verify we got the full payload
+    if total > 0 && downloaded != total {
+        let _ = tokio::fs::remove_file(partial_path).await;
+        return Err(format!(
+            "Download truncated: got {} of {} bytes",
+            downloaded, total
+        ));
+    }
+
+    // Flush + fsync before rename so power loss can't leave a half-written file
+    if let Err(e) = file.flush().await {
+        let _ = tokio::fs::remove_file(partial_path).await;
+        return Err(format!("Flush error: {}", e));
+    }
+    if let Err(e) = file.sync_all().await {
+        let _ = tokio::fs::remove_file(partial_path).await;
+        return Err(format!("Sync error: {}", e));
+    }
+    drop(file);
+
+    tokio::fs::rename(partial_path, final_path)
+        .await
+        .map_err(|e| format!("Failed to finalize download: {}", e))?;
 
     Ok(())
 }
